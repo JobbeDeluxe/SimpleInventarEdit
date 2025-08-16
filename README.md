@@ -135,13 +135,15 @@ palette:
 
 ## 🖼️ Screenshots
 
-Create a folder `docs/images/` in this repo and drop your screenshots there, then reference them like:
 
-```md
-![Player List](docs/images/player_list.png)
-![Armor View](docs/images/armor_view.png)
-![Item Palette](docs/images/palette.png)
-```
+  ![Player List](docs/images/player_list.png)
+  
+  ![Armor View](docs/images/armor_view.png)
+  
+  ![Item Palette](docs/images/palette.png)
+  
+  ![Inventar](docs/images/inventar.png)
+
 
 You can use this section to explain what each screen does and any tips for moderators.
 
