@@ -150,30 +150,8 @@ palette:
   ![Inventar](docs/images/inventar.png)
 
 
-You can use this section to explain what each screen does and any tips for moderators.
 
 ## 🛠 Build (Maven)
-
-Make sure your `pom.xml` has Paper’s repository and dependency (example):
-
-```xml
-<repositories>
-  <repository>
-    <id>papermc-repo</id>
-    <url>https://repo.papermc.io/repository/maven-public/</url>
-  </repository>
-</repositories>
-
-<dependencies>
-  <dependency>
-    <groupId>io.papermc.paper</groupId>
-    <artifactId>paper-api</artifactId>
-    <version>1.21.4-R0.1-SNAPSHOT</version>
-    <scope>provided</scope>
-  </dependency>
-</dependencies>
-```
-
 Build:
 
 ```bash
