@@ -1,0 +1,57 @@
+# Ob Schließen (ESC) automatisch zur Spielerliste zurück springt
+navigation:
+  backOnClose: true
+
+# Einfache Schnell-Drop-Palette (Q/Strg+Q in der Spielerliste)
+palette:
+  enabled: true
+  items:
+    - STONE
+    - COBBLESTONE
+    - DEEPSLATE
+    - OAK_LOG
+    - OAK_PLANKS
+    - CRAFTING_TABLE
+    - FURNACE
+    - CHEST
+    - ENDER_CHEST
+    - SHULKER_BOX
+    - BARREL
+    - TORCH
+    - LANTERN
+    - WHITE_BED
+    - BREAD
+    - COOKED_BEEF
+    - GOLDEN_CARROT
+    - WATER_BUCKET
+    - LAVA_BUCKET
+    - BUCKET
+    - IRON_INGOT
+    - GOLD_INGOT
+    - DIAMOND
+    - NETHERITE_INGOT
+    - IRON_PICKAXE
+    - DIAMOND_PICKAXE
+    - NETHERITE_PICKAXE
+    - IRON_AXE
+    - DIAMOND_AXE
+    - NETHERITE_AXE
+    - IRON_SHOVEL
+    - DIAMOND_SHOVEL
+    - NETHERITE_SHOVEL
+    - BOW
+    - CROSSBOW
+    - ARROW
+    - TOTEM_OF_UNDYING
+    - SPYGLASS
+    - MAP
+    - SHIELD
+    - FLINT_AND_STEEL
+    - SHEARS
+    - ELYTRA
+    - FIREWORK_ROCKET
+    - ENCHANTING_TABLE
+    - ANVIL
+    - GRINDSTONE
+    - SMITHING_TABLE
+
