@@ -1,4 +1,9 @@
 # SimpleInventarEdit
+[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://adoptium.net/)
+[![Server](https://img.shields.io/badge/Paper%2FSpigot-1.20%E2%80%931.21-blue.svg)](https://papermc.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
+[![Release](https://img.shields.io/github/v/release/JobbeDeluxe/SimpleInventarEdit?sort=semver)](https://github.com/JobbeDeluxe/SimpleInventarEdit/releases)
+[![Downloads](https://img.shields.io/github/downloads/JobbeDeluxe/SimpleInventarEdit/total.svg)](https://github.com/JobbeDeluxe/SimpleInventarEdit/releases)
 
 A **lightweight** Paper plugin that lets operators (or trusted moderators) browse and manage **player inventories directly in‑game** — no web UI, no external ports.
 
