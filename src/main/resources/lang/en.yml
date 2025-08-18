@@ -1,0 +1,42 @@
+plugin:
+  name: SimpleInventarEdit
+
+gui:
+  title:
+    players: "&3SIE: Players"
+    armor_prefix: "&3SIE: Armor "          # will be followed by player name
+    palette_prefix: "&3SIE: Items -> "     # will be followed by player name
+
+  button:
+    back: "&bBack"
+    close: "&cClose"
+    next: "&bNext >>"
+    prev: "&b<< Prev"
+
+  lore:
+    open_inventory: "&eLeft-click: Open inventory"
+    armor_offhand_readonly: "&eRight-click: Armor/Offhand (view only)"
+    ender_chest: "&eShift-click: Ender Chest"
+    palette_hint_stack: "&eQ/Ctrl+Q: Item palette (give stacks)"
+    palette_mmb_note: "&8(Middle-click works only in Creative)"
+
+  armor:
+    empty:
+      helmet: "&7Helmet (empty)"
+      chest: "&7Chest (empty)"
+      legs: "&7Legs (empty)"
+      boots: "&7Boots (empty)"
+      offhand: "&7Offhand (empty)"
+
+messages:
+  cmd_ingame_only: "&cIn-game only."
+  no_permission: "&cYou don't have permission."
+  target_offline: "&cPlayer is no longer online."
+  opened_inventory_of: "&aOpening inventory of &f{player}&a."
+  opened_ender_of: "&aOpening ender chest of &f{player}&a."
+  armor_view_open_of: "&aArmor/Offhand of &f{player}&a (view)."
+  palette_for: "&aPalette for &f{player}&a."
+  palette_hint: "&7Left=&fstack &7/ Right=&f1"
+  palette_target_offline: "&cTarget is offline."
+  give_confirm: "&7[SIE] &f{amount}x {item} &7→ &f{player}"
+  target_left_closed: "Target left the server. Inventory closed."
