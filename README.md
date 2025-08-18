@@ -9,7 +9,7 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
 
 ## ✨ Features
 
-- **Player List GUI** (`/sie`)
+- **Player List GUI** (`/sie`)(`/siegui`)
   - **Left‑click** a player: open their **inventory** (vanilla container view; your own inventory shows at the bottom as usual)
   - **Right‑click** a player: open **Armor/Offhand** (read‑only) with a **Back** button
   - **Shift‑click** a player: open their **Ender Chest**
