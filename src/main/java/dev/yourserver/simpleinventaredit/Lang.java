@@ -1,108 +1,128 @@
 package dev.yourserver.simpleinventaredit;
 
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public final class Lang {
-    private static Plugin plugin;
-    private static File langDir;
-    private static FileConfiguration en; // fallback
-    private static FileConfiguration de;
 
-    private static String defaultLang = "en";
-    private static boolean autoByClient = true;
+    private final JavaPlugin plugin;
+    private final Map<String, YamlConfiguration> bundles = new HashMap<>();
+    private final String defaultKey = "en_US";
 
-    private Lang() {}
-
-    public static void init(Plugin pl) {
-        plugin = pl;
-        langDir = new File(plugin.getDataFolder(), "lang");
-        if (!langDir.exists()) langDir.mkdirs();
-
-        plugin.saveDefaultConfig();
-        defaultLang = plugin.getConfig().getString("language.default", "en").toLowerCase(Locale.ROOT);
-        autoByClient = plugin.getConfig().getBoolean("language.autoByClient", true);
-
-        // Standard-Resourcen aus dem JAR ablegen, falls fehlen
-        saveLangResourceIfMissing("en.yml");
-        saveLangResourceIfMissing("de.yml");
-
-        // Laden
-        en = YamlConfiguration.loadConfiguration(new File(langDir, "en.yml"));
-        de = YamlConfiguration.loadConfiguration(new File(langDir, "de.yml"));
+    public Lang(JavaPlugin plugin) {
+        this.plugin = plugin;
+        ensureDefaults();
     }
 
-    private static void saveLangResourceIfMissing(String name) {
-        File out = new File(langDir, name);
-        if (out.exists()) return;
-        try (InputStream in = plugin.getResource("lang/" + name)) {
-            if (in != null) {
-                java.nio.file.Files.copy(in, out.toPath());
-            } else {
-                String minimal = "plugin:\n  name: SimpleInventarEdit\n";
-                java.nio.file.Files.write(out.toPath(), minimal.getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not write default lang file: " + name + " -> " + e.getMessage());
+    private void ensureDefaults() {
+        // legt die Default-Sprachdateien ab, falls im Plugin jar vorhanden
+        saveIfMissing("lang/en_US.yml");
+        saveIfMissing("lang/de_DE.yml");
+    }
+
+    private void saveIfMissing(String path) {
+        File f = new File(plugin.getDataFolder(), path);
+        if (!f.exists()) {
+            plugin.saveResource(path, false);
         }
     }
 
-    /** ermittelt "de" oder "en" für den Spieler (oder Default) */
-    public static String langFor(Player p) {
-        if (!autoByClient || p == null) return defaultLang;
+    private YamlConfiguration loadBundle(String key) {
+        return bundles.computeIfAbsent(key, k -> {
+            File f = new File(plugin.getDataFolder(), "lang/" + k + ".yml");
+            if (f.exists()) {
+                return YamlConfiguration.loadConfiguration(f);
+            }
+            // Fallback: aus JAR lesen
+            try (InputStreamReader r = new InputStreamReader(
+                    Objects.requireNonNull(plugin.getResource("lang/" + k + ".yml")),
+                    StandardCharsets.UTF_8)) {
+                return YamlConfiguration.loadConfiguration(r);
+            } catch (Exception e) {
+                // Letzter Fallback: leere Config
+                return new YamlConfiguration();
+            }
+        });
+    }
+
+    // ------- Locale-Ermittlung (Spigot/Paper kompatibel) -------
+
+    private static Locale resolveLocale(Player p) {
+        // 1) Paper (neuer): Player#locale() -> Locale
         try {
-            // Paper: locale()
-            java.util.Locale loc = p.locale();
-            if (loc != null && "de".equalsIgnoreCase(loc.getLanguage())) return "de";
-        } catch (NoSuchMethodError ignored) {
-            try {
-                // Spigot: getLocale() => "de_de" / "en_us"
-                String raw = p.getLocale();
-                if (raw != null) {
-                    String lang = raw.split("[_\\-]")[0];
-                    if ("de".equalsIgnoreCase(lang)) return "de";
-                }
-            } catch (Throwable ignored2) {}
+            var m = p.getClass().getMethod("locale");
+            Object v = m.invoke(p);
+            if (v instanceof Locale loc && !isEmpty(loc)) {
+                return loc;
+            }
+        } catch (NoSuchMethodException ignored) {
+            // Spigot hat locale() nicht – weiter zu getLocale()
+        } catch (Throwable ignored) {
         }
-        return "en";
+
+        // 2) Spigot/Paper klassisch: Player#getLocale() -> String (z. B. "en_us")
+        try {
+            String tag = p.getLocale();
+            if (tag != null && !tag.isBlank()) {
+                return toLocale(tag);
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // 3) Fallback
+        return Locale.ENGLISH;
     }
 
-    public static String tr(Player p, String key, Map<String, String> placeholders) {
-        String lang = langFor(p);
-        String value = get(lang, key);
-        if (value == null) value = get(defaultLang, key);
-        if (value == null) value = key;
+    private static boolean isEmpty(Locale l) {
+        return l == null || l.getLanguage() == null || l.getLanguage().isEmpty();
+    }
 
-        if (placeholders != null) {
-            for (Map.Entry<String, String> e : placeholders.entrySet()) {
-                value = value.replace("{" + e.getKey() + "}", e.getValue());
+    private static Locale toLocale(String tag) {
+        String norm = tag.replace('_', '-'); // "en_us" -> "en-us"
+        Locale loc = Locale.forLanguageTag(norm);
+        return isEmpty(loc) ? Locale.ENGLISH : loc;
+    }
+
+    private String keyFor(Player p) {
+        Locale loc = resolveLocale(p);
+        String lang = loc.getLanguage() == null ? "" : loc.getLanguage().toLowerCase(Locale.ROOT);
+
+        // mappe grob: alles "de*" -> de_DE, sonst en_US
+        if ("de".equals(lang)) return "de_DE";
+        return "en_US";
+    }
+
+    // ------- API -------
+
+    public String t(Player p, String path, Object... args) {
+        String key = keyFor(p);
+        String val = loadBundle(key).getString(path);
+        if (val == null) {
+            val = loadBundle(defaultKey).getString(path, path);
+        }
+        if (args != null && args.length > 0) {
+            try {
+                val = String.format(val, args);
+            } catch (IllegalFormatException ignored) {
             }
         }
-        return org.bukkit.ChatColor.translateAlternateColorCodes('&', value);
+        return val;
     }
 
-    public static String tr(Player p, String key) {
-        return tr(p, key, null);
-    }
-
-    private static String get(String lang, String key) {
-        FileConfiguration src = "de".equals(lang) ? de : en;
-        return src != null ? src.getString(key) : null;
-    }
-
-    /** schneller Placeholder-Builder */
-    public static Map<String, String> ph(String k, String v) {
-        Map<String, String> m = new HashMap<>();
-        m.put(k, v);
-        return m;
+    public String t(String path, Object... args) { // ohne Player -> Default-Sprache
+        String val = loadBundle(defaultKey).getString(path, path);
+        if (args != null && args.length > 0) {
+            try {
+                val = String.format(val, args);
+            } catch (IllegalFormatException ignored) {
+            }
+        }
+        return val;
     }
 }
