@@ -1,187 +1,133 @@
 package dev.yourserver.simpleinventaredit;
 
-import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/**
- * Sprach-Helfer mit Abwärtskompatibilität:
- * - Lang.init(plugin)
- * - Lang.tr(player, key)
- * - Lang.tr(player, key, placeholders)
- * - Lang.ph(key, value) (+ Overload zum Erweitern)
- *
- * Platzhalter-Formate unterstützt: {key} und %key%
- * Farb-Codes: &x -> ChatColor
- */
 public final class Lang {
+    private static JavaPlugin plugin;
+    private static final String DEFAULT_LOCALE = "en_US";
+    private static final Map<String, YamlConfiguration> BUNDLES = new HashMap<>();
 
-    // ---- Static Singleton + Backcompat API ----
-    private static Lang INSTANCE;
-
-    public static Lang init(JavaPlugin plugin) {
-        if (INSTANCE == null) {
-            INSTANCE = new Lang(plugin);
-        }
-        return INSTANCE;
+    public static void init(JavaPlugin pl) {
+        plugin = pl;
+        ensureDefaults();           // legt en_US.yml & de_DE.yml im Datenordner an (falls fehlen)
+        loadBundles();              // lädt erst aus Datenordner, sonst aus Jar
     }
 
-    public static Lang get() {
-        return INSTANCE;
-    }
-
-    /** Backcompat: einfache Übersetzung ohne Platzhalter */
-    public static String tr(Player p, String path) {
-        if (INSTANCE == null) return path;
-        return INSTANCE.t(p, path);
-    }
-
-    /** Backcompat: Übersetzung mit Platzhaltern */
-    public static String tr(Player p, String path, Map<String, String> placeholders) {
-        if (INSTANCE == null) return applyPlaceholders(path, placeholders);
-        return INSTANCE.t(p, path, placeholders);
-    }
-
-    /** Backcompat: Einfacher Placeholder-Builder */
-    public static Map<String, String> ph(String key, String value) {
-        HashMap<String, String> m = new HashMap<>();
-        m.put(key, value);
-        return m;
-    }
-
-    /** Optionaler Helfer, um eine bestehende Map zu erweitern */
-    public static Map<String, String> ph(Map<String, String> base, String key, String value) {
-        if (base == null) base = new HashMap<>();
-        base.put(key, value);
-        return base;
-    }
-
-    // ---- Instanz-Implementierung ----
-    private final JavaPlugin plugin;
-    private final Map<String, YamlConfiguration> bundles = new HashMap<>();
-    private final String defaultKey = "en_US";
-
-    public Lang(JavaPlugin plugin) {
-        this.plugin = plugin;
-        ensureDefaults();
-    }
-
-    private void ensureDefaults() {
+    private static void ensureDefaults() {
         saveIfMissing("lang/en_US.yml");
         saveIfMissing("lang/de_DE.yml");
     }
 
-    private void saveIfMissing(String path) {
-        File f = new File(plugin.getDataFolder(), path);
-        if (!f.exists()) {
-            plugin.saveResource(path, false);
-        }
-    }
-
-    private YamlConfiguration loadBundle(String key) {
-        return bundles.computeIfAbsent(key, k -> {
-            File f = new File(plugin.getDataFolder(), "lang/" + k + ".yml");
-            if (f.exists()) {
-                return YamlConfiguration.loadConfiguration(f);
+    private static void saveIfMissing(String path) {
+        File out = new File(plugin.getDataFolder(), path);
+        if (out.exists()) return;
+        out.getParentFile().mkdirs();
+        try (InputStream in = plugin.getResource(path)) {
+            if (in == null) throw new IllegalArgumentException("missing resource " + path);
+            try (OutputStream os = new FileOutputStream(out)) {
+                in.transferTo(os);
             }
-            // Fallback: aus JAR
-            try (InputStreamReader r = new InputStreamReader(
-                    Objects.requireNonNull(plugin.getResource("lang/" + k + ".yml")),
-                    StandardCharsets.UTF_8)) {
-                return YamlConfiguration.loadConfiguration(r);
-            } catch (Exception e) {
-                return new YamlConfiguration();
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not save default lang file: " + path + " -> " + e.getMessage());
+        }
+    }
+
+    private static void loadBundles() {
+        BUNDLES.clear();
+        loadOne("en_US");
+        loadOne("de_DE");
+    }
+
+    private static void loadOne(String code) {
+        // 1) Datenordner bevorzugt
+        File f = new File(plugin.getDataFolder(), "lang/" + code + ".yml");
+        YamlConfiguration cfg = null;
+        if (f.exists()) {
+            cfg = YamlConfiguration.loadConfiguration(f);
+            cfg.setDefaults(loadDefaultsFromJar(code));
+            cfg.options().copyDefaults(true);
+        } else {
+            cfg = loadDefaultsFromJar(code);
+        }
+        if (cfg != null) BUNDLES.put(code, cfg);
+    }
+
+    private static YamlConfiguration loadDefaultsFromJar(String code) {
+        try (InputStream in = plugin.getResource("lang/" + code + ".yml")) {
+            if (in == null) return null;
+            InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8);
+            return YamlConfiguration.loadConfiguration(reader);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static String normalize(String locale) {
+        if (locale == null || locale.isBlank()) return DEFAULT_LOCALE;
+        String l = locale.replace('-', '_');
+        String[] parts = l.split("_", 2);
+        String lang = parts[0].toLowerCase(Locale.ROOT);
+        String country = parts.length > 1 ? parts[1].toUpperCase(Locale.ROOT) : "";
+        return country.isEmpty() ? lang : lang + "_" + country;
+    }
+
+    private static String playerLocale(Player p) {
+        // Spigot 1.20.x: getLocale() existiert
+        try {
+            String loc = p != null ? p.getLocale() : null;
+            return normalize(loc != null ? loc : DEFAULT_LOCALE);
+        } catch (Throwable t) {
+            return DEFAULT_LOCALE;
+        }
+    }
+
+    public static String tr(Player p, String key) {
+        return tr(p, key, Collections.emptyMap());
+    }
+
+    public static Map<String,String> ph(String k, String v) {
+        Map<String,String> m = new HashMap<>();
+        m.put(k, v);
+        return m;
+    }
+
+    public static String tr(Player p, String key, Map<String,String> placeholders) {
+        String loc = playerLocale(p);
+        String msg = lookup(loc, key);
+        if (msg == null) {
+            // Fallback: Sprache ohne Land (z.B. de)
+            String base = loc.contains("_") ? loc.substring(0, loc.indexOf('_')) : loc;
+            msg = lookup(base, key);
+        }
+        if (msg == null) msg = lookup(DEFAULT_LOCALE, key);
+        if (msg == null) msg = key;
+
+        if (placeholders != null) {
+            for (Map.Entry<String,String> e : placeholders.entrySet()) {
+                msg = msg.replace("{" + e.getKey() + "}", e.getValue());
             }
-        });
-    }
-
-    // ------- Locale-Ermittlung (Spigot/Paper kompatibel) -------
-    private static Locale resolveLocale(Player p) {
-        if (p != null) {
-            // Paper neu: Player#locale() -> Locale
-            try {
-                var m = p.getClass().getMethod("locale");
-                Object v = m.invoke(p);
-                if (v instanceof Locale loc && !isEmpty(loc)) {
-                    return loc;
-                }
-            } catch (NoSuchMethodException ignored) {
-            } catch (Throwable ignored) {
-            }
-            // Spigot/klassisch: Player#getLocale() -> String
-            try {
-                String tag = p.getLocale();
-                if (tag != null && !tag.isBlank()) {
-                    return toLocale(tag);
-                }
-            } catch (Throwable ignored) {
-            }
         }
-        return Locale.ENGLISH;
+        return org.bukkit.ChatColor.translateAlternateColorCodes('&', msg);
     }
 
-    private static boolean isEmpty(Locale l) {
-        return l == null || l.getLanguage() == null || l.getLanguage().isEmpty();
-    }
+    private static String lookup(String code, String path) {
+        if (code == null) return null;
+        // exakte Locale
+        YamlConfiguration cfg = BUNDLES.get(code);
+        if (cfg != null && cfg.contains(path)) return cfg.getString(path);
 
-    private static Locale toLocale(String tag) {
-        String norm = tag.replace('_', '-'); // "de_de" -> "de-de"
-        Locale loc = Locale.forLanguageTag(norm);
-        return isEmpty(loc) ? Locale.ENGLISH : loc;
-    }
-
-    private String keyFor(Player p) {
-        Locale loc = resolveLocale(p);
-        String lang = (loc.getLanguage() == null) ? "" : loc.getLanguage().toLowerCase(Locale.ROOT);
-        // Ganz einfache Zuordnung: alles "de*" -> de_DE, sonst en_US
-        if ("de".equals(lang)) return "de_DE";
-        return "en_US";
-    }
-
-    // ------- Öffentliche Instanz-API -------
-    public String t(Player p, String path) {
-        String key = keyFor(p);
-        String raw = loadBundle(key).getString(path);
-        if (raw == null) {
-            raw = loadBundle(defaultKey).getString(path, path);
-        }
-        return colorize(raw);
-    }
-
-    public String t(Player p, String path, Map<String, String> placeholders) {
-        String out = t(p, path);
-        if (placeholders != null && !placeholders.isEmpty()) {
-            out = applyPlaceholders(out, placeholders);
-        }
-        return out;
-    }
-
-    public String t(String path) { // ohne Player
-        String raw = loadBundle(defaultKey).getString(path, path);
-        return colorize(raw);
-    }
-
-    // ------- Utils -------
-    private static String colorize(String s) {
-        return ChatColor.translateAlternateColorCodes('&', s == null ? "" : s);
-    }
-
-    private static String applyPlaceholders(String s, Map<String, String> map) {
-        if (s == null || map == null || map.isEmpty()) return s;
-        String out = s;
-        for (var e : map.entrySet()) {
-            String k = e.getKey();
-            String v = e.getValue() == null ? "" : e.getValue();
-            // beide Schreibweisen unterstützen
-            out = out.replace("{" + k + "}", v);
-            out = out.replace("%" + k + "%", v);
-        }
-        return out;
+        // nur Sprache (de/en)
+        if (code.length() == 2) return null;
+        String langOnly = code.substring(0, 2);
+        cfg = BUNDLES.get(langOnly);
+        if (cfg != null && cfg.contains(path)) return cfg.getString(path);
+        return null;
     }
 }
