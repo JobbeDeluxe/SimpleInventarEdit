@@ -1,12 +1,19 @@
 name: SimpleInventarEdit
 main: dev.yourserver.simpleinventaredit.SimpleInventarEditPlugin
-version: 2.2.0
-api-version: '1.20'
+version: ${project.version}
+api-version: '1.21'
 author: JobbeDeluxe
+website: https://github.com/JobbeDeluxe/SimpleInventarEdit
+description: In-game player inventory management GUI for operators (Paper 1.21.x). Open inventories, armor view (read-only), ender chest, and a quick-give palette.
+
 commands:
   sie:
-    description: Öffnet das SimpleInventarEdit GUI
+    description: Open SimpleInventarEdit player list GUI.
+    usage: "/sie"
     permission: sie.use
+    aliases: [simpleinventaredit, siegui]
+
 permissions:
   sie.use:
+    description: Allows opening the player list and all SIE GUIs.
     default: op
