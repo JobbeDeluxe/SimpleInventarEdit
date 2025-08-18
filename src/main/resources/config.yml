@@ -1,3 +1,7 @@
+language:
+  default: en        # Fallback (en/de)
+  autoByClient: true # true = nutze Client-Sprache des Spielers
+
 # Ob Schließen (ESC) automatisch zur Spielerliste zurück springt
 navigation:
   backOnClose: true
