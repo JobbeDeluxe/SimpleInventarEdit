@@ -12,7 +12,6 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -25,9 +24,6 @@ import java.util.logging.Level;
 
 public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
-    private static final String TITLE_PLAYERS = ChatColor.DARK_AQUA + "SIE: Spieler";
-    private static final String TITLE_ARMOR   = ChatColor.DARK_AQUA + "SIE: Rüstung ";
-    private static final String TITLE_PALETTE = ChatColor.DARK_AQUA + "SIE: Items -> ";
     private static final int GUI_SIZE = 54; // 6x9
 
     // ==== Config-Flags ====
@@ -46,19 +42,31 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private final Set<UUID> viewingTargetInventory = new HashSet<>();
     private final Set<UUID> viewingTargetEnder     = new HashSet<>();
 
+    /* ====== Titel-Helfer (sprachabhängig) ====== */
+    private String titlePlayers(Player viewer) {
+        return Lang.tr(viewer, "gui.title.players");
+    }
+    private String titleArmorPrefix(Player viewer) {
+        return Lang.tr(viewer, "gui.title.armor_prefix"); // mit Leerzeichen/Separator am Ende
+    }
+    private String titlePalettePrefix(Player viewer) {
+        return Lang.tr(viewer, "gui.title.palette_prefix"); // mit Leerzeichen/Separator am Ende
+    }
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        Lang.init(this);      // <--- Sprache initialisieren
         loadSieConfig();
 
         if (getCommand("sie") != null) {
             getCommand("sie").setExecutor((sender, cmd, label, args) -> {
                 if (!(sender instanceof Player p)) {
-                    sender.sendMessage(ChatColor.RED + "Nur ingame.");
+                    sender.sendMessage(Lang.tr(null, "messages.cmd_ingame_only"));
                     return true;
                 }
                 if (!p.hasPermission("sie.use")) {
-                    p.sendMessage(ChatColor.RED + "Keine Berechtigung.");
+                    p.sendMessage(Lang.tr(p, "messages.no_permission"));
                     return true;
                 }
                 openPlayerList(p, 0);
@@ -66,8 +74,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             });
         }
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("SimpleInventarEdit bereit. /sie (Links: Inventar, Rechts: Rüstung, Shift: Endertruhe"
-                + (enablePalette ? ", Q/Strg+Q: Palette" : "") + ")");
+        getLogger().info("SimpleInventarEdit ready. Use /sie");
     }
 
     private void loadSieConfig() {
@@ -133,7 +140,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     @SuppressWarnings("deprecation")
-    private ItemStack headButton(String name, UUID uuid, String... lore) {
+    private ItemStack headButton(Player viewer, String name, UUID uuid, String... lore) {
         ItemStack it = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) it.getItemMeta();
         if (meta != null) {
@@ -162,26 +169,26 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
         online.sort(Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER));
 
-        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, TITLE_PLAYERS);
+        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, titlePlayers(admin));
         int start = page * 45; // 5 Reihen für Spieler
         int end = Math.min(start + 45, online.size());
         for (int i = start; i < end; i++) {
             Player target = online.get(i);
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.YELLOW + "Linksklick: Inventar öffnen");
-            lore.add(ChatColor.YELLOW + "Rechtsklick: Rüstung/Offhand (nur ansehen)");
-            lore.add(ChatColor.YELLOW + "Shift-Klick: Endertruhe");
+            lore.add(Lang.tr(admin, "gui.lore.open_inventory"));
+            lore.add(Lang.tr(admin, "gui.lore.armor_offhand_readonly"));
+            lore.add(Lang.tr(admin, "gui.lore.ender_chest"));
             if (enablePalette) {
-                lore.add(ChatColor.YELLOW + "Q/Strg+Q: Item-Palette (Stacks geben)");
-                lore.add(ChatColor.DARK_GRAY + "(Mittelklick nur in Creative)");
+                lore.add(Lang.tr(admin, "gui.lore.palette_hint_stack"));
+                lore.add(Lang.tr(admin, "gui.lore.palette_mmb_note"));
             }
-            inv.setItem(i - start, headButton(target.getName(), target.getUniqueId(),
+            inv.setItem(i - start, headButton(admin, target.getName(), target.getUniqueId(),
                     lore.toArray(new String[0])));
         }
 
-        if (page > 0) inv.setItem(45, named(Material.ARROW, ChatColor.AQUA + "Zurück"));
-        inv.setItem(49, named(Material.BARRIER, ChatColor.RED + "Schließen"));
-        if (end < online.size()) inv.setItem(53, named(Material.ARROW, ChatColor.AQUA + "Weiter"));
+        if (page > 0) inv.setItem(45, named(Material.ARROW, Lang.tr(admin, "gui.button.back")));
+        inv.setItem(49, named(Material.BARRIER, Lang.tr(admin, "gui.button.close")));
+        if (end < online.size()) inv.setItem(53, named(Material.ARROW, Lang.tr(admin, "gui.button.next")));
 
         admin.openInventory(inv);
         admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
@@ -197,7 +204,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         String title = e.getView().getTitle();
 
         // Spielerliste
-        if (TITLE_PLAYERS.equals(title)) {
+        if (title.equals(titlePlayers(admin))) {
             e.setCancelled(true);
             int raw = e.getRawSlot();
             ItemStack cur = e.getCurrentItem();
@@ -211,7 +218,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
                 Player target = Bukkit.getPlayerExact(name);
                 if (target == null || !target.isOnline()) {
-                    admin.sendMessage(ChatColor.RED + "Spieler ist nicht mehr online.");
+                    admin.sendMessage(Lang.tr(admin, "messages.target_offline"));
                     admin.closeInventory();
                     return;
                 }
@@ -244,7 +251,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
 
         // Armor-GUI (nur ansehen, aber mit "Zurück")
-        if (title.startsWith(TITLE_ARMOR)) {
+        if (title.startsWith(titleArmorPrefix(admin))) {
             e.setCancelled(true); // keine Edits in Armor-Ansicht
 
             if (e.getRawSlot() == 8) { // Barrier = Zurück
@@ -256,13 +263,13 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
 
         // Palette
-        if (title.startsWith(TITLE_PALETTE)) {
+        if (title.startsWith(titlePalettePrefix(admin))) {
             e.setCancelled(true);
             UUID targetId = paletteTargetByViewer.get(admin.getUniqueId());
             if (targetId == null) return;
             Player target = Bukkit.getPlayer(targetId);
             if (target == null || !target.isOnline()) {
-                admin.sendMessage(ChatColor.RED + "Ziel offline.");
+                admin.sendMessage(Lang.tr(admin, "messages.palette_target_offline"));
                 admin.closeInventory();
                 return;
             }
@@ -291,7 +298,11 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                             target.getWorld().dropItemNaturally(target.getLocation(), rest));
                 }
                 admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
-                admin.sendMessage(ChatColor.GRAY + "[SIE] " + give.getAmount() + "x " + clicked.getType() + " → " + target.getName());
+
+                Map<String,String> ph = Lang.ph("amount", String.valueOf(give.getAmount()));
+                ph.put("item", clicked.getType().name());
+                ph.put("player", target.getName());
+                admin.sendMessage(Lang.tr(admin, "messages.give_confirm", ph));
             }
             return;
         }
@@ -303,7 +314,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         String title = e.getView().getTitle();
 
         // Armor/Palette schließen -> ggf. zurück zur Spielerliste
-        if (title.startsWith(TITLE_ARMOR)) {
+        if (title.startsWith(titleArmorPrefix(admin))) {
             armorGuiTargetByViewer.remove(admin.getUniqueId());
             if (backOnClose) {
                 int page = lastListPageByViewer.getOrDefault(admin.getUniqueId(), 0);
@@ -311,7 +322,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             }
             return;
         }
-        if (title.startsWith(TITLE_PALETTE)) {
+        if (title.startsWith(titlePalettePrefix(admin))) {
             paletteTargetByViewer.remove(admin.getUniqueId());
             if (backOnClose) {
                 int page = lastListPageByViewer.getOrDefault(admin.getUniqueId(), 0);
@@ -339,7 +350,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             Player admin = Bukkit.getPlayer(v);
             if (admin != null && admin.isOnline()) {
                 admin.closeInventory();
-                admin.sendMessage(ChatColor.YELLOW + "[SIE] Zielspieler hat den Server verlassen. Inventar geschlossen.");
+                admin.sendMessage(ChatColor.GRAY + "[SIE] " + Lang.tr(admin, "messages.target_left_closed"));
             }
         }
     }
@@ -347,72 +358,70 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     /* ====== Öffnen ====== */
 
     private void openTargetInventory(Player admin, Player target) {
-    // Erst öffnen …
-    admin.openInventory(target.getInventory());
-    admin.sendMessage(ChatColor.AQUA + "Inventar von " + target.getName() + " geöffnet.");
-    addViewer(admin, target);
+        admin.openInventory(target.getInventory());
 
-    // … und das Back-on-close-Tracking NACH dem Inventarwechsel setzen
-    // (sonst feuert es beim Schließen der Spielerliste sofort zurück)
-    Bukkit.getScheduler().runTask(this, () -> viewingTargetInventory.add(admin.getUniqueId()));
-	}
+        admin.sendMessage(Lang.tr(admin, "messages.opened_inventory_of",
+                Lang.ph("player", target.getName())));
+        addViewer(admin, target);
+        Bukkit.getScheduler().runTask(this, () -> viewingTargetInventory.add(admin.getUniqueId()));
+    }
 
     private void openTargetEnderChest(Player admin, Player target) {
-    // Erst öffnen …
-    admin.openInventory(target.getEnderChest());
-    admin.sendMessage(ChatColor.AQUA + "Endertruhe von " + target.getName() + " geöffnet.");
-    addViewer(admin, target);
-
-    // Tracking erst im nächsten Tick setzen
-    Bukkit.getScheduler().runTask(this, () -> viewingTargetEnder.add(admin.getUniqueId()));
-	}
+        admin.openInventory(target.getEnderChest());
+        admin.sendMessage(Lang.tr(admin, "messages.opened_ender_of",
+                Lang.ph("player", target.getName())));
+        addViewer(admin, target);
+        Bukkit.getScheduler().runTask(this, () -> viewingTargetEnder.add(admin.getUniqueId()));
+    }
 
     /* ====== Armor GUI (nur ansehen, mit Zurück) ====== */
 
     private void openArmorGui(Player admin, Player target) {
-        Inventory gui = Bukkit.createInventory(admin, 9, TITLE_ARMOR + target.getName());
+        Inventory gui = Bukkit.createInventory(admin, 9, titleArmorPrefix(admin) + target.getName());
         armorGuiTargetByViewer.put(admin.getUniqueId(), target.getUniqueId());
         addViewer(admin, target);
-        fillArmorGui(gui, target);
+        fillArmorGui(admin, gui, target);
         admin.openInventory(gui);
-        admin.sendMessage(ChatColor.AQUA + "Rüstung/Offhand von " + target.getName() + " (Ansicht).");
+        admin.sendMessage(Lang.tr(admin, "messages.armor_view_open_of",
+                Lang.ph("player", target.getName())));
     }
 
-    private void fillArmorGui(Inventory inv, Player target) {
+    private void fillArmorGui(Player viewer, Inventory inv, Player target) {
         inv.clear();
         PlayerInventory pi = target.getInventory();
 
-        inv.setItem(0, safeClone(pi.getHelmet(),        named(Material.LEATHER_HELMET,      ChatColor.GRAY + "Helm (leer)")));
-        inv.setItem(1, safeClone(pi.getChestplate(),    named(Material.LEATHER_CHESTPLATE,  ChatColor.GRAY + "Brust (leer)")));
-        inv.setItem(2, safeClone(pi.getLeggings(),      named(Material.LEATHER_LEGGINGS,    ChatColor.GRAY + "Beine (leer)")));
-        inv.setItem(3, safeClone(pi.getBoots(),         named(Material.LEATHER_BOOTS,       ChatColor.GRAY + "Stiefel (leer)")));
-        inv.setItem(4, safeClone(pi.getItemInOffHand(), named(Material.SHIELD,              ChatColor.GRAY + "Offhand (leer)")));
+        inv.setItem(0, safeClone(pi.getHelmet(),        named(Material.LEATHER_HELMET,     Lang.tr(viewer, "gui.armor.empty.helmet"))));
+        inv.setItem(1, safeClone(pi.getChestplate(),    named(Material.LEATHER_CHESTPLATE, Lang.tr(viewer, "gui.armor.empty.chest"))));
+        inv.setItem(2, safeClone(pi.getLeggings(),      named(Material.LEATHER_LEGGINGS,   Lang.tr(viewer, "gui.armor.empty.legs"))));
+        inv.setItem(3, safeClone(pi.getBoots(),         named(Material.LEATHER_BOOTS,      Lang.tr(viewer, "gui.armor.empty.boots"))));
+        inv.setItem(4, safeClone(pi.getItemInOffHand(), named(Material.SHIELD,             Lang.tr(viewer, "gui.armor.empty.offhand"))));
 
         for (int i = 5; i <= 7; i++) {
             inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
         }
-        inv.setItem(8, named(Material.BARRIER, ChatColor.AQUA + "Zurück"));
+        inv.setItem(8, named(Material.BARRIER, Lang.tr(viewer, "gui.button.back")));
     }
 
     /* ====== Palette ====== */
 
     private void openPaletteGui(Player admin, Player target, int page) {
         if (!enablePalette) return;
-        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, TITLE_PALETTE + target.getName());
+        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, titlePalettePrefix(admin) + target.getName());
         paletteTargetByViewer.put(admin.getUniqueId(), target.getUniqueId());
         addViewer(admin, target);
 
         for (int i = 45; i < 54; i++) {
             inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
         }
-        inv.setItem(49, named(Material.BARRIER, ChatColor.AQUA + "Zurück"));
+        inv.setItem(49, named(Material.BARRIER, Lang.tr(admin, "gui.button.back")));
 
         // bis zu 45 Items auf Seite 0
         for (int i = 0; i < Math.min(45, paletteItems.size()); i++) {
             inv.setItem(i, new ItemStack(paletteItems.get(i)));
         }
 
+        Map<String,String> ph = Lang.ph("player", target.getName());
+        admin.sendMessage(Lang.tr(admin, "messages.palette_for", ph) + " " + Lang.tr(admin, "messages.palette_hint"));
         admin.openInventory(inv);
-        admin.sendMessage(ChatColor.AQUA + "Palette für " + target.getName() + ": Linksklick=Stack, Rechtsklick=1 Stück.");
     }
 }
