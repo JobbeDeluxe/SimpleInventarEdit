@@ -1,42 +1,30 @@
-plugin:
-  name: SimpleInventarEdit
-
-gui:
-  title:
-    players: "&3SIE: Spieler"
-    armor_prefix: "&3SIE: Rüstung "        # danach kommt der Spielername
-    palette_prefix: "&3SIE: Items -> "     # danach kommt der Spielername
-
-  button:
-    back: "&bZurück"
-    close: "&cSchließen"
-    next: "&bWeiter >>"
-    prev: "&b<< Zurück"
-
-  lore:
-    open_inventory: "&eLinksklick: Inventar öffnen"
-    armor_offhand_readonly: "&eRechtsklick: Rüstung/Offhand (nur ansehen)"
-    ender_chest: "&eShift-Klick: Endertruhe"
-    palette_hint_stack: "&eQ/Strg+Q: Item-Palette (Stacks geben)"
-    palette_mmb_note: "&8(Mittelklick nur in Creative)"
-
-  armor:
-    empty:
-      helmet: "&7Helm (leer)"
-      chest: "&7Brust (leer)"
-      legs: "&7Beine (leer)"
-      boots: "&7Stiefel (leer)"
-      offhand: "&7Offhand (leer)"
-
-messages:
-  cmd_ingame_only: "&cNur ingame."
+# --- SimpleInventarEdit i18n (Deutsch) ---
+error:
   no_permission: "&cKeine Berechtigung."
-  target_offline: "&cSpieler ist nicht mehr online."
-  opened_inventory_of: "&aInventar von &f{player}&a geöffnet."
-  opened_ender_of: "&aEndertruhe von &f{player}&a geöffnet."
-  armor_view_open_of: "&aRüstung/Offhand von &f{player}&a (Ansicht)."
-  palette_for: "&aPalette für &f{player}&a."
-  palette_hint: "&7Links=&fStack &7/ Rechts=&f1"
-  palette_target_offline: "&cZiel offline."
-  give_confirm: "&7[SIE] &f{amount}x {item} &7→ &f{player}"
-  target_left_closed: "Zielspieler hat den Server verlassen. Inventar geschlossen."
+  player_offline: "&cSpieler ist nicht mehr online."
+  target_offline: "&cZiel offline."
+
+ui:
+  back: "Zurück"
+  close: "Schließen"
+  next: "Weiter"
+  empty:
+    helmet: "Helm (leer)"
+    chest: "Brust (leer)"
+    legs: "Beine (leer)"
+    boots: "Stiefel (leer)"
+    offhand: "Offhand (leer)"
+  list_lore_inv: "Linksklick: Inventar öffnen"
+  list_lore_armor: "Rechtsklick: Rüstung/Offhand (nur ansehen)"
+  list_lore_ender: "Shift-Klick: Endertruhe"
+  list_lore_palette: "Q/Strg+Q/Mittelklick: Item-Palette"
+  list_lore_midclick: "(Mittelklick nur in Creative)"
+  help_title: "Hilfe"
+  help_palette_l: "Linksklick: ganzen Stack geben"
+  help_palette_r: "Rechtsklick: 1 Stück geben"
+
+hint:
+  palette: "&ePalette: &7Links = Stapel, Rechts = 1 Stück"
+  inv_open: "&bBearbeite Inventar von {name}"
+  ender_open: "&bBearbeite Endertruhe von {name}"
+  armor_open: "&bRüstung von {name} (nur ansehen)"
