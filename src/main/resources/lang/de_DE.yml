@@ -1,30 +1,69 @@
 # --- SimpleInventarEdit i18n (Deutsch) ---
 error:
-  no_permission: "&cKeine Berechtigung."
-  player_offline: "&cSpieler ist nicht mehr online."
-  target_offline: "&cZiel offline."
+  no_permission: "&cDafür hast du keine Berechtigung."
+  player_offline: "&cDer Spieler ist nicht mehr online."
+  target_offline: "&cZielspieler ist offline."
+  invalid_armor_type: "&cDieser Gegenstand passt nicht in diesen Slot."
+
+info:
+  target_left: "&eZielspieler hat den Server verlassen. Inventar geschlossen."
 
 ui:
+  # Titel der GUIs
+  players_title: "SIE: Spieler"
+  armor_title: "SIE: Rüstung - {player}"
+  armor_title_prefix: "SIE: Rüstung"
+  palette_title: "SIE: Items -> {player}"
+  palette_title_prefix: "SIE: Items"
+  help: "Hilfe"   # Name des Hilfe-Buttons im Player-UI
+
+  # Allgemeine Buttons
   back: "Zurück"
   close: "Schließen"
   next: "Weiter"
+
+  # Delete-Mode Umschalter in der Spielerliste
+  delete_mode_on: "Löschmodus: AN"
+  delete_mode_off: "Löschmodus: AUS"
+  delete_mode_hint1: "Klick = Stapel löschen"
+  delete_mode_hint2: "Rechtsklick = um 1 reduzieren"
+
+  # (Kompatibilität für ältere Builds)
+  list_lore_inv: "Linksklick: Inventar öffnen"
+  list_lore_armor: "Rechtsklick: Rüstung/Offhand (ansehen & bearbeiten)"
+  list_lore_ender: "Shift-Klick: Endertruhe"
+  list_lore_palette: "Q/Strg+Q/Mittelklick: Item-Palette"
+  list_lore_midclick: "(Mittelklick nur im Kreativmodus)"
+
+  help_title: "Hilfe"
+  help_palette_l: "Linksklick: vollen Stack geben"
+  help_palette_r: "Rechtsklick: 1 Item geben"
+
+help:
+  click_left_inv: "Linksklick: Inventar öffnen"
+  click_right_armor: "Rechtsklick: Rüstung/Offhand (ansehen & bearbeiten)"
+  shift_click_ender: "Shift-Klick: Endertruhe"
+  q_palette: "Q/Strg+Q/Mittelklick: Item-Palette (Stacks / einzeln)"
+  middle_creative: "(Mittelklick nur im Kreativmodus)"
+  armor_title: "Rüstung & Offhand"
+  armor_put_take: "Items durch Klicken setzen/nehmen"
+  armor_offhand: "In die Offhand darf jedes Item"
+  armor_types: "Nur passende Rüstung passt in den Slot"
+  delete_mode_title: "Löschmodus"
+  delete_mode_long1: "Wenn AN, wirken Klicks im OBEREN Inventar auf das Ziel."
+  delete_mode_long2: "Linksklick löscht den gesamten Stapel."
+  delete_mode_long3: "Rechtsklick reduziert den Stapel um 1."
+
+armor:
   empty:
     helmet: "Helm (leer)"
     chest: "Brust (leer)"
     legs: "Beine (leer)"
     boots: "Stiefel (leer)"
     offhand: "Offhand (leer)"
-  list_lore_inv: "Linksklick: Inventar öffnen"
-  list_lore_armor: "Rechtsklick: Rüstung/Offhand (nur ansehen)"
-  list_lore_ender: "Shift-Klick: Endertruhe"
-  list_lore_palette: "Q/Strg+Q/Mittelklick: Item-Palette"
-  list_lore_midclick: "(Mittelklick nur in Creative)"
-  help_title: "Hilfe"
-  help_palette_l: "Linksklick: ganzen Stack geben"
-  help_palette_r: "Rechtsklick: 1 Stück geben"
 
 hint:
-  palette: "&ePalette: &7Links = Stapel, Rechts = 1 Stück"
-  inv_open: "&bBearbeite Inventar von {name}"
-  ender_open: "&bBearbeite Endertruhe von {name}"
-  armor_open: "&bRüstung von {name} (nur ansehen)"
+  palette: "&ePalette: &7Links = Stack, Rechts = 1 Item"
+  inv_open: "&bBearbeite {name}s Inventar"
+  ender_open: "&bBearbeite {name}s Endertruhe"
+  armor_open: "&bBearbeite {name}s Rüstung/Offhand"
