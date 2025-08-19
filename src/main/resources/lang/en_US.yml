@@ -3,28 +3,67 @@ error:
   no_permission: "&cYou don't have permission."
   player_offline: "&cPlayer is no longer online."
   target_offline: "&cTarget player is offline."
+  invalid_armor_type: "&cThat item cannot be placed in this slot."
+
+info:
+  target_left: "&eTarget player left the server. Inventory closed."
 
 ui:
+  # Titles used by the GUI (and for startsWith checks)
+  players_title: "SIE: Players"
+  armor_title: "SIE: Armor - {player}"
+  armor_title_prefix: "SIE: Armor"
+  palette_title: "SIE: Items -> {player}"
+  palette_title_prefix: "SIE: Items"
+  help: "Help"   # <--- NEU: Name des Help-Buttons im Player-UI
+
+  # Common buttons
   back: "Back"
   close: "Close"
   next: "Next"
+
+  # Delete-mode toggle in the player list
+  delete_mode_on: "Delete Mode: ON"
+  delete_mode_off: "Delete Mode: OFF"
+  delete_mode_hint1: "Click = delete stack"
+  delete_mode_hint2: "Right-click = reduce by 1"
+
+  # (Kept for lore compatibility with older builds)
+  list_lore_inv: "Left-click: open inventory"
+  list_lore_armor: "Right-click: armor/offhand (view & edit)"
+  list_lore_ender: "Shift-click: ender chest"
+  list_lore_palette: "Q/Ctrl+Q/Middle-click: item palette"
+  list_lore_midclick: "(Middle-click only in Creative)"
+
+  help_title: "Help"
+  help_palette_l: "Left-click: give full stack"
+  help_palette_r: "Right-click: give 1 item"
+
+help:
+  click_left_inv: "Left-click: open inventory"
+  click_right_armor: "Right-click: armor/offhand (view & edit)"
+  shift_click_ender: "Shift-click: ender chest"
+  q_palette: "Q/Ctrl+Q/Middle: item palette (stacks / single)"
+  middle_creative: "(Middle-click Creative only)"
+  armor_title: "Armor & Offhand"
+  armor_put_take: "Place/take items by clicking"
+  armor_offhand: "Offhand accepts any item"
+  armor_types: "Only valid armor fits each slot"
+  delete_mode_title: "Delete Mode"
+  delete_mode_long1: "When ON, clicks in the TOP inventory affect target items."
+  delete_mode_long2: "Left-click deletes the entire stack."
+  delete_mode_long3: "Right-click reduces the stack by 1."
+
+armor:
   empty:
     helmet: "Helmet (empty)"
     chest: "Chest (empty)"
     legs: "Legs (empty)"
     boots: "Boots (empty)"
     offhand: "Offhand (empty)"
-  list_lore_inv: "Left-click: open inventory"
-  list_lore_armor: "Right-click: armor/offhand (view only)"
-  list_lore_ender: "Shift-click: ender chest"
-  list_lore_palette: "Q/Ctrl+Q/Middle-click: item palette"
-  list_lore_midclick: "(Middle-click only in Creative)"
-  help_title: "Help"
-  help_palette_l: "Left-click: give full stack"
-  help_palette_r: "Right-click: give 1 item"
 
 hint:
   palette: "&ePalette: &7Left = Stack, Right = 1 item"
   inv_open: "&bEditing {name}'s inventory"
   ender_open: "&bEditing {name}'s ender chest"
-  armor_open: "&bViewing {name}'s armor (read-only)"
+  armor_open: "&bEditing {name}'s armor/offhand"
