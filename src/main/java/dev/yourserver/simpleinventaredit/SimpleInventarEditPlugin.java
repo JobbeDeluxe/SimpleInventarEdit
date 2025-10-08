@@ -135,6 +135,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         this.offlineDataFile = new File(getDataFolder(), "offline-data.yml");
         loadSieConfig();
         loadOfflineData();
+        populateOfflineIndex();
 
         // i18n
         Lang.init(this);
@@ -333,6 +334,25 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             ItemStack[] inv = deserializeItems(cfg.getList(base + "inventory"), 41);
             ItemStack[] ender = deserializeItems(cfg.getList(base + "ender"), 27);
             offlineData.put(uuid, new OfflinePlayerData(name, inv, ender));
+        }
+    }
+
+    private void populateOfflineIndex() {
+        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
+            if (op == null) continue;
+            if (!op.hasPlayedBefore() && !op.isOnline()) continue;
+
+            UUID uuid = op.getUniqueId();
+            OfflinePlayerData data = offlineData.computeIfAbsent(uuid, id ->
+                    new OfflinePlayerData(null, new ItemStack[41], new ItemStack[27]));
+
+            String name = op.getName();
+            if (name == null || name.isBlank()) name = uuid.toString();
+            data.name = name;
+        }
+
+        if (!offlineData.isEmpty()) {
+            saveOfflineData();
         }
     }
 
@@ -979,13 +999,17 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             // Toggle-Button (Slot 48)
             if (paletteEditable && raw == 48) {
                 e.setCancelled(true);
+                Inventory topInv = e.getView().getTopInventory();
                 if (editing) {
-                    syncPaletteFromGui(admin, e.getView().getTopInventory());
+                    syncPaletteFromGui(admin, topInv);
                     paletteEditMode.remove(adminId);
+                    refillPaletteItems(topInv);
+                    topInv.setItem(48, paletteToggleItem(admin, false));
                 } else {
                     paletteEditMode.add(adminId);
+                    topInv.setItem(48, paletteToggleItem(admin, true));
                 }
-                openPaletteGui(admin, target, 0);
+                admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
                 return;
             }
 
@@ -1196,25 +1220,33 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
         }
         if (paletteEditable) {
-            boolean editing = paletteEditMode.contains(admin.getUniqueId());
-            Material toggleMat = editing ? Material.LIME_DYE : Material.RED_DYE;
-            String title = editing ? ChatColor.GREEN + Lang.tr(admin, "ui.palette_edit_on")
-                                   : ChatColor.GRAY + Lang.tr(admin, "ui.palette_edit_off");
-            List<String> lore = Arrays.asList(
-                    "§7" + Lang.tr(admin, "ui.palette_edit_tooltip1"),
-                    "§7" + Lang.tr(admin, "ui.palette_edit_tooltip2"),
-                    "§8" + Lang.tr(admin, "ui.palette_edit_hint1"),
-                    "§8" + Lang.tr(admin, "ui.palette_edit_hint2")
-            );
-            inv.setItem(48, named(toggleMat, title, lore));
+            inv.setItem(48, paletteToggleItem(admin, paletteEditMode.contains(admin.getUniqueId())));
         }
         inv.setItem(49, named(Material.BARRIER, ChatColor.AQUA + Lang.tr(admin, "ui.back")));
 
-        for (int i = 0; i < Math.min(45, paletteItems.size()); i++) {
-            inv.setItem(i, new ItemStack(paletteItems.get(i)));
-        }
+        refillPaletteItems(inv);
 
         admin.openInventory(inv);
+    }
+
+    private ItemStack paletteToggleItem(Player admin, boolean editing) {
+        Material toggleMat = editing ? Material.LIME_DYE : Material.RED_DYE;
+        String title = editing ? ChatColor.GREEN + Lang.tr(admin, "ui.palette_edit_on")
+                               : ChatColor.GRAY + Lang.tr(admin, "ui.palette_edit_off");
+        List<String> lore = Arrays.asList(
+                "§7" + Lang.tr(admin, "ui.palette_edit_tooltip1"),
+                "§7" + Lang.tr(admin, "ui.palette_edit_tooltip2"),
+                "§8" + Lang.tr(admin, "ui.palette_edit_hint1"),
+                "§8" + Lang.tr(admin, "ui.palette_edit_hint2")
+        );
+        return named(toggleMat, title, lore);
+    }
+
+    private void refillPaletteItems(Inventory inv) {
+        for (int i = 0; i < 45; i++) {
+            ItemStack stack = i < paletteItems.size() ? new ItemStack(paletteItems.get(i)) : null;
+            inv.setItem(i, stack);
+        }
     }
 
     private static class OfflinePlayerData {
