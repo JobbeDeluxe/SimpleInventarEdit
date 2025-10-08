@@ -1472,14 +1472,14 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         String closedTitle = e.getView().getTitle();
 
         // Armor/Palette-GUIs: nur reagieren, wenn DIESE GUIs wirklich geschlossen wurden
-        boolean closedArmor = closedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.armor_title_prefix")));
-        boolean closedPalette = closedTitle.startsWith(Lang.tr(admin, "ui.palette_title_prefix"));
-        boolean closedOnlineTitle = closedTitle.startsWith(Lang.tr(admin, "ui.inventory_prefix"));
-        boolean closedOfflineInv = closedTitle.startsWith(Lang.tr(admin, "ui.offline_inventory_prefix"));
-        boolean closedOfflineEnder = closedTitle.startsWith(Lang.tr(admin, "ui.offline_ender_prefix"));
+        String strippedTitle = ChatColor.stripColor(closedTitle);
+        boolean closedArmor = strippedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.armor_title_prefix")));
+        boolean closedPalette = strippedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.palette_title_prefix")));
+        boolean closedOnlineInv = strippedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.inventory_prefix")));
+        boolean closedOfflineInv = strippedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.offline_inventory_prefix")));
+        boolean closedOfflineEnder = strippedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.offline_ender_prefix")));
 
-        boolean closedOnlineInv = onlineInventoryTargetByViewer.containsKey(uid);
-        if (closedOnlineInv) {
+        if (closedOnlineInv && onlineInventoryTargetByViewer.containsKey(uid)) {
             syncOnlineInventoryFromGui(admin, e.getInventory());
             onlineInventoryTargetByViewer.remove(uid);
         }
@@ -1509,7 +1509,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 return;
             }
 
-            if (closedArmor || closedPalette || closedOnlineInv || closedOnlineTitle || wasTargetInv || wasTargetEnd) {
+            if (closedArmor || closedPalette || closedOnlineInv || wasTargetInv || wasTargetEnd) {
                 int page = lastListPageByViewer.getOrDefault(uid, 0);
                 Bukkit.getScheduler().runTask(this, () -> openPlayerList(admin, page));
             }
