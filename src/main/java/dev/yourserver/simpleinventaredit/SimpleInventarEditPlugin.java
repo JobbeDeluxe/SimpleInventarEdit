@@ -3,6 +3,7 @@ package dev.yourserver.simpleinventaredit;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -23,6 +24,7 @@ import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.persistence.PersistentDataType;
 
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
@@ -70,6 +72,14 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             Material.GOLDEN_BOOTS, Material.DIAMOND_BOOTS, Material.NETHERITE_BOOTS
     );
 
+    private static final Map<EquipmentSlot, Set<String>> LEGACY_PLACEHOLDER_NAMES = Map.of(
+            EquipmentSlot.HEAD, Set.of("Helm (leer)", "Helmet (empty)"),
+            EquipmentSlot.CHEST, Set.of("Brust (leer)", "Chest (empty)"),
+            EquipmentSlot.LEGS, Set.of("Beine (leer)", "Legs (empty)"),
+            EquipmentSlot.FEET, Set.of("Stiefel (leer)", "Boots (empty)"),
+            EquipmentSlot.OFF_HAND, Set.of("Offhand (leer)", "Offhand (empty)")
+    );
+
     private static boolean isAllowedInArmorSlot(Material type, EquipmentSlot slot) {
         if (type == null) return false;
         switch (slot) {
@@ -88,6 +98,11 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         Map<String,String> ph = new HashMap<>();
         ph.put("player", targetName);
         return Lang.tr(p, "ui.armor_title", ph);
+    }
+    private String titleInventory(Player p, String targetName) {
+        Map<String,String> ph = new HashMap<>();
+        ph.put("player", targetName);
+        return Lang.tr(p, "ui.inventory_title", ph);
     }
     private String titlePalette(Player p, String targetName) {
         Map<String,String> ph = new HashMap<>();
@@ -111,6 +126,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     // Admin -> aktuell betrachtetes Ziel (Armor/Palette)
     private final Map<UUID, UUID> armorGuiTargetByViewer = new HashMap<>();
     private final Map<UUID, UUID> paletteTargetByViewer  = new HashMap<>();
+    private final Map<UUID, UUID> onlineInventoryTargetByViewer = new HashMap<>();
     // Admin -> letzte Spielerliste-Seite (für "Zurück")
     private final Map<UUID, Integer> lastListPageByViewer = new HashMap<>();
     private final Map<UUID, Integer> offlineListPageByViewer = new HashMap<>();
@@ -124,6 +140,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
     private final Map<UUID, OfflinePlayerData> offlineData = new HashMap<>();
     private File offlineDataFile;
+    private NamespacedKey placeholderKey;
 
     @Override
     public void onEnable() {
@@ -133,6 +150,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             getDataFolder().mkdirs();
         }
         this.offlineDataFile = new File(getDataFolder(), "offline-data.yml");
+        this.placeholderKey = new NamespacedKey(this, "gui-placeholder");
         loadSieConfig();
         loadOfflineData();
         populateOfflineIndex();
@@ -272,7 +290,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     private ItemStack safeClone(ItemStack stack, ItemStack fallbackIfAir) {
-        if (stack == null || stack.getType() == Material.AIR) return fallbackIfAir;
+        if (stack == null || stack.getType() == Material.AIR || isPlaceholder(stack)) return fallbackIfAir;
         return stack.clone();
     }
 
@@ -282,7 +300,110 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
     private ItemStack cloneOrNull(ItemStack stack) {
         if (stack == null || stack.getType() == Material.AIR) return null;
+        if (isPlaceholder(stack)) return null;
         return stack.clone();
+    }
+
+    private ItemStack armorPlaceholder(Player viewer, EquipmentSlot slot) {
+        Material mat;
+        String key;
+        switch (slot) {
+            case HEAD -> {
+                mat = Material.LEATHER_HELMET;
+                key = "armor.empty.helmet";
+            }
+            case CHEST -> {
+                mat = Material.LEATHER_CHESTPLATE;
+                key = "armor.empty.chest";
+            }
+            case LEGS -> {
+                mat = Material.LEATHER_LEGGINGS;
+                key = "armor.empty.legs";
+            }
+            case FEET -> {
+                mat = Material.LEATHER_BOOTS;
+                key = "armor.empty.boots";
+            }
+            case OFF_HAND -> {
+                mat = Material.SHIELD;
+                key = "armor.empty.offhand";
+            }
+            default -> {
+                mat = Material.GRAY_STAINED_GLASS_PANE;
+                key = "armor.empty.helmet";
+            }
+        }
+        ItemStack base = named(mat, ChatColor.GRAY + Lang.tr(viewer, key));
+        return markPlaceholder(base, slot);
+    }
+
+    private ItemStack markPlaceholder(ItemStack stack, EquipmentSlot slot) {
+        if (stack == null) return null;
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null && placeholderKey != null) {
+            meta.getPersistentDataContainer().set(placeholderKey, PersistentDataType.STRING, slot.name());
+            stack.setItemMeta(meta);
+        }
+        return stack;
+    }
+
+    private boolean isPlaceholder(ItemStack stack) {
+        if (stack == null) return false;
+        if (isLegacyPlaceholder(stack)) return true;
+        if (placeholderKey == null) return false;
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return false;
+        return meta.getPersistentDataContainer().has(placeholderKey, PersistentDataType.STRING);
+    }
+
+    private boolean isLegacyPlaceholder(ItemStack stack) {
+        if (stack == null || stack.getAmount() != 1) return false;
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null || !meta.hasDisplayName() || meta.hasLore()) return false;
+        Material type = stack.getType();
+        EquipmentSlot slot = switch (type) {
+            case LEATHER_HELMET -> EquipmentSlot.HEAD;
+            case LEATHER_CHESTPLATE -> EquipmentSlot.CHEST;
+            case LEATHER_LEGGINGS -> EquipmentSlot.LEGS;
+            case LEATHER_BOOTS -> EquipmentSlot.FEET;
+            case SHIELD -> EquipmentSlot.OFF_HAND;
+            default -> null;
+        };
+        if (slot == null) return false;
+        String stripped = ChatColor.stripColor(meta.getDisplayName());
+        Set<String> legacy = LEGACY_PLACEHOLDER_NAMES.get(slot);
+        return legacy != null && legacy.contains(stripped);
+    }
+
+    private void decorateInventoryControls(Inventory inv, Player viewer) {
+        for (int i = 41; i <= 44; i++) {
+            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
+        }
+        for (int i = 46; i < 54; i++) {
+            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
+        }
+        inv.setItem(45, named(Material.ARROW, ChatColor.AQUA + Lang.tr(viewer, "ui.back")));
+        inv.setItem(47, named(Material.WRITTEN_BOOK, ChatColor.GOLD + Lang.tr(viewer, "ui.help")));
+        inv.setItem(49, named(Material.BARRIER, ChatColor.RED + Lang.tr(viewer, "ui.close")));
+    }
+
+    private void ensureInventoryPlaceholders(Inventory inv, Player viewer) {
+        if (inv == null || viewer == null || inv.getSize() < 41) return;
+        if (inv.getItem(36) == null || inv.getItem(36).getType() == Material.AIR || isPlaceholder(inv.getItem(36))) {
+            inv.setItem(36, armorPlaceholder(viewer, EquipmentSlot.HEAD));
+        }
+        if (inv.getItem(37) == null || inv.getItem(37).getType() == Material.AIR || isPlaceholder(inv.getItem(37))) {
+            inv.setItem(37, armorPlaceholder(viewer, EquipmentSlot.CHEST));
+        }
+        if (inv.getItem(38) == null || inv.getItem(38).getType() == Material.AIR || isPlaceholder(inv.getItem(38))) {
+            inv.setItem(38, armorPlaceholder(viewer, EquipmentSlot.LEGS));
+        }
+        if (inv.getItem(39) == null || inv.getItem(39).getType() == Material.AIR || isPlaceholder(inv.getItem(39))) {
+            inv.setItem(39, armorPlaceholder(viewer, EquipmentSlot.FEET));
+        }
+        if (inv.getItem(40) == null || inv.getItem(40).getType() == Material.AIR || isPlaceholder(inv.getItem(40))) {
+            inv.setItem(40, armorPlaceholder(viewer, EquipmentSlot.OFF_HAND));
+        }
     }
 
     private ItemStack[] cloneArray(ItemStack[] src, int size) {
@@ -406,6 +527,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         data.inventory[40] = cloneOrNull(inv.getItem(40)); // offhand
 
         saveOfflineData();
+        ensureInventoryPlaceholders(inv, admin);
     }
 
     private void syncOfflineEnderFromGui(Player admin, Inventory inv) {
@@ -419,6 +541,34 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             data.ender[i] = cloneOrNull(inv.getItem(i));
         }
         saveOfflineData();
+    }
+
+    private void syncOnlineInventoryFromGui(Player admin, Inventory inv) {
+        if (admin == null || inv == null) return;
+        UUID viewerId = admin.getUniqueId();
+        UUID targetId = onlineInventoryTargetByViewer.get(viewerId);
+        if (targetId == null) return;
+        Player target = Bukkit.getPlayer(targetId);
+        if (target == null || !target.isOnline()) {
+            onlineInventoryTargetByViewer.remove(viewerId);
+            admin.closeInventory();
+            admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.target_offline"));
+            return;
+        }
+
+        PlayerInventory pi = target.getInventory();
+        for (int slot = 0; slot < 36; slot++) {
+            pi.setItem(slot, cloneOrNull(inv.getItem(slot)));
+        }
+        pi.setHelmet(cloneOrNull(inv.getItem(36)));
+        pi.setChestplate(cloneOrNull(inv.getItem(37)));
+        pi.setLeggings(cloneOrNull(inv.getItem(38)));
+        pi.setBoots(cloneOrNull(inv.getItem(39)));
+        pi.setItemInOffHand(cloneOrNull(inv.getItem(40)));
+
+        target.updateInventory();
+        storeOfflineData(target);
+        ensureInventoryPlaceholders(inv, admin);
     }
 
     private void syncPaletteFromGui(Player admin, Inventory top) {
@@ -645,21 +795,13 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             inv.setItem(i, cloneOrNull(data.inventory[i]));
         }
 
-        inv.setItem(36, safeClone(data.inventory[39], named(Material.LEATHER_HELMET, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.helmet"))));
-        inv.setItem(37, safeClone(data.inventory[38], named(Material.LEATHER_CHESTPLATE, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.chest"))));
-        inv.setItem(38, safeClone(data.inventory[37], named(Material.LEATHER_LEGGINGS, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.legs"))));
-        inv.setItem(39, safeClone(data.inventory[36], named(Material.LEATHER_BOOTS, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.boots"))));
-        inv.setItem(40, safeClone(data.inventory[40], named(Material.SHIELD, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.offhand"))));
+        inv.setItem(36, safeClone(data.inventory[39], armorPlaceholder(viewer, EquipmentSlot.HEAD)));
+        inv.setItem(37, safeClone(data.inventory[38], armorPlaceholder(viewer, EquipmentSlot.CHEST)));
+        inv.setItem(38, safeClone(data.inventory[37], armorPlaceholder(viewer, EquipmentSlot.LEGS)));
+        inv.setItem(39, safeClone(data.inventory[36], armorPlaceholder(viewer, EquipmentSlot.FEET)));
+        inv.setItem(40, safeClone(data.inventory[40], armorPlaceholder(viewer, EquipmentSlot.OFF_HAND)));
 
-        for (int i = 41; i < 45; i++) {
-            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
-        }
-        for (int i = 46; i < 54; i++) {
-            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
-        }
-        inv.setItem(45, named(Material.ARROW, ChatColor.AQUA + Lang.tr(viewer, "ui.back")));
-        inv.setItem(47, named(Material.WRITTEN_BOOK, ChatColor.GOLD + Lang.tr(viewer, "ui.help")));
-        inv.setItem(49, named(Material.BARRIER, ChatColor.RED + Lang.tr(viewer, "ui.close")));
+        decorateInventoryControls(inv, viewer);
     }
 
     private void openOfflineEnderChest(Player admin, UUID targetId) {
@@ -702,6 +844,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
         String title = e.getView().getTitle();
         UUID adminId = admin.getUniqueId();
+        boolean inDelete = deleteMode.contains(adminId);
 
         // ---- Spielerliste ----
         if (title.equals(titlePlayers(admin))) {
@@ -806,11 +949,104 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             return;
         }
 
+        // ---- Online-Inventar (GUI) ----
+        if (onlineInventoryTargetByViewer.containsKey(adminId)) {
+            Inventory top = e.getView().getTopInventory();
+            if (e.getClickedInventory() == e.getView().getBottomInventory()) {
+                Inventory topInv = top;
+                Bukkit.getScheduler().runTask(this, () -> syncOnlineInventoryFromGui(admin, topInv));
+                return;
+            }
+
+            int raw = e.getRawSlot();
+            if (raw < 0 || raw >= top.getSize()) return;
+
+            if (raw == 45) {
+                e.setCancelled(true);
+                int page = lastListPageByViewer.getOrDefault(adminId, 0);
+                openPlayerList(admin, page);
+                return;
+            }
+            if (raw == 47) { e.setCancelled(true); openHelpBook(admin); return; }
+            if (raw == 49) { e.setCancelled(true); admin.closeInventory(); return; }
+
+            if ((raw >= 41 && raw <= 44) || raw >= 46) {
+                e.setCancelled(true);
+                return;
+            }
+
+            ItemStack clicked = e.getCurrentItem();
+            ItemStack cursor = e.getCursor();
+            boolean cursorEmpty = cursor == null || cursor.getType() == Material.AIR;
+
+            if (raw >= 36 && raw <= 40) {
+                if (cursorEmpty && isPlaceholder(clicked)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                if (!cursorEmpty && cursor != null) {
+                    EquipmentSlot slot = switch (raw) {
+                        case 36 -> EquipmentSlot.HEAD;
+                        case 37 -> EquipmentSlot.CHEST;
+                        case 38 -> EquipmentSlot.LEGS;
+                        case 39 -> EquipmentSlot.FEET;
+                        case 40 -> EquipmentSlot.OFF_HAND;
+                        default -> EquipmentSlot.HAND;
+                    };
+                    if (!isAllowedInArmorSlot(cursor.getType(), slot)) {
+                        e.setCancelled(true);
+                        admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
+                        admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.invalid_armor_type"));
+                        return;
+                    }
+                    if (slot != EquipmentSlot.OFF_HAND && cursor.getAmount() > 1) {
+                        e.setCancelled(true);
+                        admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
+                        admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.armor_stack"));
+                        return;
+                    }
+                }
+            }
+
+            if (inDelete && clicked != null && clicked.getType() != Material.AIR) {
+                if (isPlaceholder(clicked)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                if (e.getClickedInventory() == top) {
+                    e.setCancelled(true);
+                    if (e.getClick().isRightClick()) {
+                        ItemStack mod = clicked.clone();
+                        mod.setAmount(Math.max(0, mod.getAmount() - 1));
+                        if (mod.getAmount() <= 0) {
+                            e.setCurrentItem(new ItemStack(Material.AIR));
+                        } else {
+                            e.setCurrentItem(mod);
+                        }
+                    } else {
+                        e.setCurrentItem(new ItemStack(Material.AIR));
+                    }
+                    admin.playSound(admin.getLocation(), Sound.BLOCK_LAVA_EXTINGUISH, 0.6f, 1.5f);
+                    Inventory topInv = top;
+                    Bukkit.getScheduler().runTask(this, () -> syncOnlineInventoryFromGui(admin, topInv));
+                    return;
+                }
+            }
+
+            e.setCancelled(false);
+            Inventory topInv = top;
+            Bukkit.getScheduler().runTask(this, () -> syncOnlineInventoryFromGui(admin, topInv));
+            return;
+        }
+
         // ---- Offline-Inventar ----
         if (offlineInventoryTargetByViewer.containsKey(adminId)) {
-            if (e.getClickedInventory() == e.getView().getBottomInventory()) return;
-
             Inventory top = e.getView().getTopInventory();
+            if (e.getClickedInventory() == e.getView().getBottomInventory()) {
+                Inventory topInv = top;
+                Bukkit.getScheduler().runTask(this, () -> syncOfflineInventoryFromGui(admin, topInv));
+                return;
+            }
             int raw = e.getRawSlot();
             if (raw < 0 || raw >= top.getSize()) return;
 
@@ -828,9 +1064,16 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 return;
             }
 
+            ItemStack clicked = e.getCurrentItem();
+            ItemStack cursor = e.getCursor();
+            boolean cursorEmpty = cursor == null || cursor.getType() == Material.AIR;
+
             if (raw >= 36 && raw <= 39) {
-                ItemStack cursor = e.getCursor();
-                if (cursor != null && cursor.getType() != Material.AIR) {
+                if (cursorEmpty && isPlaceholder(clicked)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                if (!cursorEmpty && cursor != null) {
                     EquipmentSlot slot = switch (raw) {
                         case 36 -> EquipmentSlot.HEAD;
                         case 37 -> EquipmentSlot.CHEST;
@@ -850,6 +1093,38 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                         admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.armor_stack"));
                         return;
                     }
+                }
+            }
+
+            if (raw == 40) {
+                if (cursorEmpty && isPlaceholder(clicked)) {
+                    e.setCancelled(true);
+                    return;
+                }
+            }
+
+            if (inDelete && clicked != null && clicked.getType() != Material.AIR) {
+                if (isPlaceholder(clicked)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                if (e.getClickedInventory() == top) {
+                    e.setCancelled(true);
+                    if (e.getClick().isRightClick()) {
+                        ItemStack mod = clicked.clone();
+                        mod.setAmount(Math.max(0, mod.getAmount() - 1));
+                        if (mod.getAmount() <= 0) {
+                            e.setCurrentItem(new ItemStack(Material.AIR));
+                        } else {
+                            e.setCurrentItem(mod);
+                        }
+                    } else {
+                        e.setCurrentItem(new ItemStack(Material.AIR));
+                    }
+                    admin.playSound(admin.getLocation(), Sound.BLOCK_LAVA_EXTINGUISH, 0.6f, 1.5f);
+                    Inventory topInv = top;
+                    Bukkit.getScheduler().runTask(this, () -> syncOfflineInventoryFromGui(admin, topInv));
+                    return;
                 }
             }
 
@@ -1053,7 +1328,6 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
 
         // ---- Löschmodus in nativen Ziel-Inventaren / Enderchests ----
-        boolean inDelete = deleteMode.contains(adminId);
         if (inDelete && (viewingTargetInventory.contains(adminId) || viewingTargetEnder.contains(adminId))) {
             // Nur oberes (Ziel-)Inventar behandeln
             if (e.getClickedInventory() != null && e.getClickedInventory() == e.getView().getTopInventory()) {
@@ -1084,8 +1358,15 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         // Armor/Palette-GUIs: nur reagieren, wenn DIESE GUIs wirklich geschlossen wurden
         boolean closedArmor = closedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.armor_title_prefix")));
         boolean closedPalette = closedTitle.startsWith(Lang.tr(admin, "ui.palette_title_prefix"));
+        boolean closedOnlineTitle = closedTitle.startsWith(Lang.tr(admin, "ui.inventory_prefix"));
         boolean closedOfflineInv = closedTitle.startsWith(Lang.tr(admin, "ui.offline_inventory_prefix"));
         boolean closedOfflineEnder = closedTitle.startsWith(Lang.tr(admin, "ui.offline_ender_prefix"));
+
+        boolean closedOnlineInv = onlineInventoryTargetByViewer.containsKey(uid);
+        if (closedOnlineInv) {
+            syncOnlineInventoryFromGui(admin, e.getInventory());
+            onlineInventoryTargetByViewer.remove(uid);
+        }
 
         if (closedArmor) armorGuiTargetByViewer.remove(uid);
         if (closedPalette) {
@@ -1102,24 +1383,20 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             offlineEnderTargetByViewer.remove(uid);
         }
 
-        if (backOnClose && (closedArmor || closedPalette)) {
-            int page = lastListPageByViewer.getOrDefault(uid, 0);
-            Bukkit.getScheduler().runTask(this, () -> openPlayerList(admin, page));
-            return;
-        }
-
-        if (backOnClose && (closedOfflineInv || closedOfflineEnder)) {
-            int page = offlineListPageByViewer.getOrDefault(uid, 0);
-            Bukkit.getScheduler().runTask(this, () -> openOfflineList(admin, page));
-            return;
-        }
-
-        // native Ziel-Inventare / Enderchests
         boolean wasTargetInv = viewingTargetInventory.remove(uid);
         boolean wasTargetEnd = viewingTargetEnder.remove(uid);
-        if (backOnClose && (wasTargetInv || wasTargetEnd)) {
-            int page = lastListPageByViewer.getOrDefault(uid, 0);
-            Bukkit.getScheduler().runTask(this, () -> openPlayerList(admin, page));
+
+        if (backOnClose) {
+            if (closedOfflineInv || closedOfflineEnder) {
+                int page = offlineListPageByViewer.getOrDefault(uid, 0);
+                Bukkit.getScheduler().runTask(this, () -> openOfflineList(admin, page));
+                return;
+            }
+
+            if (closedArmor || closedPalette || closedOnlineInv || closedOnlineTitle || wasTargetInv || wasTargetEnd) {
+                int page = lastListPageByViewer.getOrDefault(uid, 0);
+                Bukkit.getScheduler().runTask(this, () -> openPlayerList(admin, page));
+            }
         }
     }
 
@@ -1154,14 +1431,32 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         paletteEditMode.remove(e.getPlayer().getUniqueId());
         offlineInventoryTargetByViewer.remove(e.getPlayer().getUniqueId());
         offlineEnderTargetByViewer.remove(e.getPlayer().getUniqueId());
+        onlineInventoryTargetByViewer.remove(e.getPlayer().getUniqueId());
     }
 
     /* ====== Öffnen ====== */
 
     private void openTargetInventory(Player admin, Player target) {
-        admin.openInventory(target.getInventory());
+        Inventory gui = Bukkit.createInventory(admin, GUI_SIZE, titleInventory(admin, target.getName()));
+        onlineInventoryTargetByViewer.put(admin.getUniqueId(), target.getUniqueId());
         addViewer(admin, target);
-        Bukkit.getScheduler().runTask(this, () -> viewingTargetInventory.add(admin.getUniqueId()));
+        fillOnlineInventory(gui, target, admin);
+        admin.openInventory(gui);
+        admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.1f);
+    }
+
+    private void fillOnlineInventory(Inventory inv, Player target, Player viewer) {
+        inv.clear();
+        PlayerInventory pi = target.getInventory();
+        for (int i = 0; i < 36; i++) {
+            inv.setItem(i, cloneOrNull(pi.getItem(i)));
+        }
+        inv.setItem(36, safeClone(pi.getHelmet(), armorPlaceholder(viewer, EquipmentSlot.HEAD)));
+        inv.setItem(37, safeClone(pi.getChestplate(), armorPlaceholder(viewer, EquipmentSlot.CHEST)));
+        inv.setItem(38, safeClone(pi.getLeggings(), armorPlaceholder(viewer, EquipmentSlot.LEGS)));
+        inv.setItem(39, safeClone(pi.getBoots(), armorPlaceholder(viewer, EquipmentSlot.FEET)));
+        inv.setItem(40, safeClone(pi.getItemInOffHand(), armorPlaceholder(viewer, EquipmentSlot.OFF_HAND)));
+        decorateInventoryControls(inv, viewer);
     }
 
     private void openTargetEnderChest(Player admin, Player target) {

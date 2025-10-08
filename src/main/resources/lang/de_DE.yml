@@ -14,6 +14,8 @@ ui:
   players_title: "SIE: Spieler"
   armor_title: "SIE: Rüstung - {player}"
   armor_title_prefix: "SIE: Rüstung"
+  inventory_title: "SIE: Inventar - {player}"
+  inventory_prefix: "SIE: Inventar"
   palette_title: "SIE: Items -> {player}"
   palette_title_prefix: "SIE: Items"
   help: "Hilfe"   # Name des Hilfe-Buttons im Player-UI
