@@ -4,6 +4,7 @@ error:
   player_offline: "&cPlayer is no longer online."
   target_offline: "&cTarget player is offline."
   invalid_armor_type: "&cThat item cannot be placed in this slot."
+  armor_stack: "&cArmor slots accept only one item."
 
 info:
   target_left: "&eTarget player left the server. Inventory closed."
@@ -16,6 +17,20 @@ ui:
   palette_title: "SIE: Items -> {player}"
   palette_title_prefix: "SIE: Items"
   help: "Help"   # <--- NEU: Name des Help-Buttons im Player-UI
+  offline_players_title: "SIE: Offline Players"
+  offline_inventory_title: "SIE: Offline Inventory - {player}"
+  offline_inventory_prefix: "SIE: Offline Inventory"
+  offline_ender_title: "SIE: Offline Ender Chest - {player}"
+  offline_ender_prefix: "SIE: Offline Ender Chest"
+  offline_toggle: "Offline Players"
+  offline_no_data: "&cNo stored data for that player yet."
+  palette_edit_on: "Palette Edit: ON"
+  palette_edit_off: "Palette Edit: OFF"
+  palette_edit_hint1: "Place/remove items in the top inventory."
+  palette_edit_hint2: "Changes save automatically."
+  offline_toggle_hint1: "Browse and edit offline players"
+  offline_toggle_hint2: "Uses the last saved data"
+  offline_back: "Back to Online List"
 
   # Common buttons
   back: "Back"
@@ -27,6 +42,10 @@ ui:
   delete_mode_off: "Delete Mode: OFF"
   delete_mode_hint1: "Click = delete stack"
   delete_mode_hint2: "Right-click = reduce by 1"
+  palette_edit_tooltip1: "Click to toggle palette edit mode"
+  palette_edit_tooltip2: "Top inventory becomes editable"
+  offline_inventory_hint: "Left-click: offline inventory (incl. armor)"
+  offline_ender_hint: "Right-click: offline ender chest"
 
   # (Kept for lore compatibility with older builds)
   list_lore_inv: "Left-click: open inventory"

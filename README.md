@@ -21,6 +21,12 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
   - Optional: after closing target **Inventory/Ender Chest**, automatically return to the Player List
 - **Configurable “Quick‑Give” Palette**
   - Define the palette in `config.yml` (`palette.items`) using valid Spigot/Paper material names
+- **Live palette editing**
+  - Toggle edit mode inside the palette GUI to rearrange or replace quick items
+  - Every change saves instantly back to `config.yml`
+- **Offline inventory editing**
+  - Browse stored offline players and modify their inventory or ender chest
+  - Changes apply automatically once the player rejoins
 - **Secure & simple**
   - No web server, no extra ports
   - Access is controlled by a single permission
@@ -157,6 +163,10 @@ Build:
 ```bash
 mvn -U -DskipTests clean package
 ```
+
+## 🤖 Continuous Integration
+
+GitHub Actions automatically compiles the plugin on pushes to the `test` and `main` branches, as well as pull requests targeting `test`. Each run produces a downloadable JAR artifact so you can grab the latest build for testing before merging.
 
 ## 📜 License
 

@@ -9,6 +9,7 @@ navigation:
 # Einfache Schnell-Drop-Palette (Q/Strg+Q in der Spielerliste)
 palette:
   enabled: true
+  allowIngameEditing: true
   items:
     - STONE
     - COBBLESTONE

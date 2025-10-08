@@ -3,7 +3,9 @@ package dev.yourserver.simpleinventaredit;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,6 +14,7 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -27,8 +30,11 @@ import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
@@ -36,8 +42,10 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
     // Config
     private boolean enablePalette = true;
+    private boolean paletteEditable = true;
     private boolean backOnClose   = true;
     private List<Material> paletteItems = null;
+    private final Set<UUID> paletteEditMode = new HashSet<>();
 
     // ---- Armor whitelist (version-stable, no org.bukkit.Tag needed) ----
     private static final Set<Material> HELMETS = EnumSet.of(
@@ -86,6 +94,17 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         ph.put("player", targetName);
         return Lang.tr(p, "ui.palette_title", ph);
     }
+    private String titleOfflinePlayers(Player p) { return Lang.tr(p, "ui.offline_players_title"); }
+    private String titleOfflineInventory(Player p, String targetName) {
+        Map<String,String> ph = new HashMap<>();
+        ph.put("player", targetName);
+        return Lang.tr(p, "ui.offline_inventory_title", ph);
+    }
+    private String titleOfflineEnder(Player p, String targetName) {
+        Map<String,String> ph = new HashMap<>();
+        ph.put("player", targetName);
+        return Lang.tr(p, "ui.offline_ender_title", ph);
+    }
 
     // Ziel -> Admin-Viewer (zum Schließen bei Logout)
     private final Map<UUID, Set<UUID>> viewersByTarget = new HashMap<>();
@@ -94,16 +113,28 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private final Map<UUID, UUID> paletteTargetByViewer  = new HashMap<>();
     // Admin -> letzte Spielerliste-Seite (für "Zurück")
     private final Map<UUID, Integer> lastListPageByViewer = new HashMap<>();
+    private final Map<UUID, Integer> offlineListPageByViewer = new HashMap<>();
     // Admin, der natives Ziel-Inventar/Endertruhe geöffnet hat (für "backOnClose")
     private final Set<UUID> viewingTargetInventory = new HashSet<>();
     private final Set<UUID> viewingTargetEnder     = new HashSet<>();
     // Admins im Löschmodus
     private final Set<UUID> deleteMode = new HashSet<>();
+    private final Map<UUID, UUID> offlineInventoryTargetByViewer = new HashMap<>();
+    private final Map<UUID, UUID> offlineEnderTargetByViewer = new HashMap<>();
+
+    private final Map<UUID, OfflinePlayerData> offlineData = new HashMap<>();
+    private File offlineDataFile;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        if (!getDataFolder().exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            getDataFolder().mkdirs();
+        }
+        this.offlineDataFile = new File(getDataFolder(), "offline-data.yml");
         loadSieConfig();
+        loadOfflineData();
 
         // i18n
         Lang.init(this);
@@ -141,12 +172,24 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
 
         getServer().getPluginManager().registerEvents(this, this);
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            storeOfflineData(online);
+        }
         getLogger().info("SimpleInventarEdit ready.");
+    }
+
+    @Override
+    public void onDisable() {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            storeOfflineData(online);
+        }
+        saveOfflineData();
     }
 
     private void loadSieConfig() {
         var cfg = getConfig();
         this.enablePalette = cfg.getBoolean("palette.enabled", true);
+        this.paletteEditable = cfg.getBoolean("palette.allowIngameEditing", true);
         this.backOnClose   = cfg.getBoolean("navigation.backOnClose", true);
 
         List<String> names = cfg.getStringList("palette.items");
@@ -187,6 +230,19 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         );
     }
 
+    private void persistPaletteItems() {
+        List<String> names = paletteItems.stream()
+                .map(mat -> mat != null ? mat.name() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        getConfig().set("palette.items", names);
+        try {
+            saveConfig();
+        } catch (Exception ex) {
+            getLogger().log(Level.WARNING, "Could not save palette items", ex);
+        }
+    }
+
     /* ====== Utils ====== */
 
     private ItemStack named(Material mat, String name, List<String> lore) {
@@ -221,6 +277,140 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
     private void addViewer(Player admin, Player target) {
         viewersByTarget.computeIfAbsent(target.getUniqueId(), k -> new HashSet<>()).add(admin.getUniqueId());
+    }
+
+    private ItemStack cloneOrNull(ItemStack stack) {
+        if (stack == null || stack.getType() == Material.AIR) return null;
+        return stack.clone();
+    }
+
+    private ItemStack[] cloneArray(ItemStack[] src, int size) {
+        ItemStack[] out = new ItemStack[size];
+        if (src == null) return out;
+        int len = Math.min(size, src.length);
+        for (int i = 0; i < len; i++) {
+            out[i] = cloneOrNull(src[i]);
+        }
+        return out;
+    }
+
+    private ItemStack[] deserializeItems(List<?> raw, int size) {
+        ItemStack[] out = new ItemStack[size];
+        if (raw == null) return out;
+        int len = Math.min(size, raw.size());
+        for (int i = 0; i < len; i++) {
+            Object obj = raw.get(i);
+            if (obj instanceof ItemStack item) {
+                out[i] = cloneOrNull(item);
+            } else if (obj instanceof Map) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) obj;
+                    out[i] = cloneOrNull(ItemStack.deserialize(map));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return out;
+    }
+
+    private void loadOfflineData() {
+        offlineData.clear();
+        if (offlineDataFile == null || !offlineDataFile.exists()) return;
+
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(offlineDataFile);
+        if (!cfg.isConfigurationSection("players")) return;
+
+        for (String key : cfg.getConfigurationSection("players").getKeys(false)) {
+            UUID uuid;
+            try {
+                uuid = UUID.fromString(key);
+            } catch (IllegalArgumentException ex) {
+                continue;
+            }
+            String base = "players." + key + ".";
+            String name = cfg.getString(base + "name", uuid.toString());
+            ItemStack[] inv = deserializeItems(cfg.getList(base + "inventory"), 41);
+            ItemStack[] ender = deserializeItems(cfg.getList(base + "ender"), 27);
+            offlineData.put(uuid, new OfflinePlayerData(name, inv, ender));
+        }
+    }
+
+    private void saveOfflineData() {
+        if (offlineDataFile == null) return;
+        YamlConfiguration cfg = new YamlConfiguration();
+        for (Map.Entry<UUID, OfflinePlayerData> entry : offlineData.entrySet()) {
+            UUID uuid = entry.getKey();
+            OfflinePlayerData data = entry.getValue();
+            String base = "players." + uuid;
+            cfg.set(base + ".name", data.name);
+            cfg.set(base + ".inventory", Arrays.stream(data.inventory)
+                    .map(this::cloneOrNull)
+                    .collect(Collectors.toList()));
+            cfg.set(base + ".ender", Arrays.stream(data.ender)
+                    .map(this::cloneOrNull)
+                    .collect(Collectors.toList()));
+        }
+        try {
+            cfg.save(offlineDataFile);
+        } catch (IOException e) {
+            getLogger().log(Level.WARNING, "Could not save offline data", e);
+        }
+    }
+
+    private void storeOfflineData(Player player) {
+        if (player == null) return;
+        OfflinePlayerData data = new OfflinePlayerData(player.getName(),
+                cloneArray(player.getInventory().getContents(), 41),
+                cloneArray(player.getEnderChest().getContents(), 27));
+        offlineData.put(player.getUniqueId(), data);
+        saveOfflineData();
+    }
+
+    private void syncOfflineInventoryFromGui(Player admin, Inventory inv) {
+        if (admin == null || inv == null) return;
+        UUID viewerId = admin.getUniqueId();
+        UUID targetId = offlineInventoryTargetByViewer.get(viewerId);
+        if (targetId == null) return;
+        OfflinePlayerData data = offlineData.get(targetId);
+        if (data == null) return;
+
+        for (int slot = 0; slot < 36; slot++) {
+            data.inventory[slot] = cloneOrNull(inv.getItem(slot));
+        }
+        // Armor/offhand mapping to player inventory indexes
+        data.inventory[39] = cloneOrNull(inv.getItem(36)); // helmet
+        data.inventory[38] = cloneOrNull(inv.getItem(37)); // chestplate
+        data.inventory[37] = cloneOrNull(inv.getItem(38)); // leggings
+        data.inventory[36] = cloneOrNull(inv.getItem(39)); // boots
+        data.inventory[40] = cloneOrNull(inv.getItem(40)); // offhand
+
+        saveOfflineData();
+    }
+
+    private void syncOfflineEnderFromGui(Player admin, Inventory inv) {
+        if (admin == null || inv == null) return;
+        UUID viewerId = admin.getUniqueId();
+        UUID targetId = offlineEnderTargetByViewer.get(viewerId);
+        if (targetId == null) return;
+        OfflinePlayerData data = offlineData.get(targetId);
+        if (data == null) return;
+        for (int i = 0; i < Math.min(27, inv.getSize()); i++) {
+            data.ender[i] = cloneOrNull(inv.getItem(i));
+        }
+        saveOfflineData();
+    }
+
+    private void syncPaletteFromGui(Player admin, Inventory top) {
+        if (admin == null || top == null) return;
+        List<Material> updated = new ArrayList<>();
+        for (int i = 0; i < Math.min(45, top.getSize()); i++) {
+            ItemStack item = top.getItem(i);
+            if (item == null || item.getType() == Material.AIR) continue;
+            updated.add(item.getType());
+        }
+        this.paletteItems = updated;
+        persistPaletteItems();
     }
 
     /* ====== Hilfe: Echtes Buch – Page 1 gesplittet (1/2 & 2/2), Back-Link auf jeder Seite ====== */
@@ -335,10 +525,152 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         // Hilfe-Button
         inv.setItem(50, named(Material.WRITTEN_BOOK, ChatColor.GOLD + Lang.tr(admin, "ui.help")));
 
+        // Offline-Liste öffnen
+        List<String> offlineLore = Arrays.asList(
+                "§7" + Lang.tr(admin, "ui.offline_toggle_hint1"),
+                "§7" + Lang.tr(admin, "ui.offline_toggle_hint2")
+        );
+        inv.setItem(47, named(Material.COMPASS, ChatColor.GOLD + Lang.tr(admin, "ui.offline_toggle"), offlineLore));
+
         if (end < online.size()) inv.setItem(53, named(Material.ARROW, ChatColor.AQUA + Lang.tr(admin, "ui.next")));
 
         admin.openInventory(inv);
         admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+    }
+
+    private void openOfflineList(Player admin, int page) {
+        offlineListPageByViewer.put(admin.getUniqueId(), page);
+
+        List<Map.Entry<UUID, OfflinePlayerData>> offline = offlineData.entrySet().stream()
+                .filter(entry -> {
+                    Player online = Bukkit.getPlayer(entry.getKey());
+                    return online == null || !online.isOnline();
+                })
+                .sorted(Comparator.comparing(entry -> {
+                    OfflinePlayerData data = entry.getValue();
+                    String name = data != null ? data.name : null;
+                    if (name == null || name.isBlank()) {
+                        OfflinePlayer op = Bukkit.getOfflinePlayer(entry.getKey());
+                        name = op != null ? op.getName() : entry.getKey().toString();
+                        if (data != null) data.name = name;
+                    }
+                    return name.toLowerCase(Locale.ROOT);
+                }))
+                .collect(Collectors.toList());
+
+        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, titleOfflinePlayers(admin));
+
+        int start = page * 45;
+        if (start >= offline.size() && page > 0) {
+            page = 0;
+            start = 0;
+            offlineListPageByViewer.put(admin.getUniqueId(), 0);
+        }
+        int end = Math.min(start + 45, offline.size());
+        for (int i = start; i < end; i++) {
+            Map.Entry<UUID, OfflinePlayerData> entry = offline.get(i);
+            UUID uuid = entry.getKey();
+            OfflinePlayerData data = entry.getValue();
+            String name = data != null ? data.name : null;
+            if (name == null || name.isBlank()) {
+                OfflinePlayer op = Bukkit.getOfflinePlayer(uuid);
+                name = op != null ? op.getName() : uuid.toString();
+                if (data != null) data.name = name;
+            }
+            List<String> lore = new ArrayList<>();
+            lore.add("§e" + Lang.tr(admin, "ui.offline_inventory_hint"));
+            lore.add("§e" + Lang.tr(admin, "ui.offline_ender_hint"));
+            inv.setItem(i - start, headButton(admin, name, uuid, lore));
+        }
+
+        if (page > 0) {
+            inv.setItem(45, named(Material.ARROW, ChatColor.AQUA + Lang.tr(admin, "ui.back")));
+        }
+        inv.setItem(48, named(Material.COMPASS, ChatColor.GOLD + Lang.tr(admin, "ui.offline_back")));
+        inv.setItem(49, named(Material.BARRIER, ChatColor.RED + Lang.tr(admin, "ui.close")));
+        inv.setItem(50, named(Material.WRITTEN_BOOK, ChatColor.GOLD + Lang.tr(admin, "ui.help")));
+
+        if (end < offline.size()) {
+            inv.setItem(53, named(Material.ARROW, ChatColor.AQUA + Lang.tr(admin, "ui.next")));
+        }
+
+        admin.openInventory(inv);
+        admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.1f);
+    }
+
+    private void openOfflineInventory(Player admin, UUID targetId) {
+        OfflinePlayerData data = offlineData.get(targetId);
+        if (data == null) {
+            admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
+            return;
+        }
+        OfflinePlayer offline = Bukkit.getOfflinePlayer(targetId);
+        String name = data.name;
+        if ((name == null || name.isBlank()) && offline != null) {
+            name = offline.getName();
+        }
+        if (name == null || name.isBlank()) name = targetId.toString();
+        data.name = name;
+
+        Inventory inv = Bukkit.createInventory(admin, GUI_SIZE, titleOfflineInventory(admin, name));
+        offlineInventoryTargetByViewer.put(admin.getUniqueId(), targetId);
+        fillOfflineInventory(inv, data, admin);
+        admin.openInventory(inv);
+        admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.1f);
+    }
+
+    private void fillOfflineInventory(Inventory inv, OfflinePlayerData data, Player viewer) {
+        inv.clear();
+        for (int i = 0; i < 36; i++) {
+            inv.setItem(i, cloneOrNull(data.inventory[i]));
+        }
+
+        inv.setItem(36, safeClone(data.inventory[39], named(Material.LEATHER_HELMET, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.helmet"))));
+        inv.setItem(37, safeClone(data.inventory[38], named(Material.LEATHER_CHESTPLATE, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.chest"))));
+        inv.setItem(38, safeClone(data.inventory[37], named(Material.LEATHER_LEGGINGS, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.legs"))));
+        inv.setItem(39, safeClone(data.inventory[36], named(Material.LEATHER_BOOTS, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.boots"))));
+        inv.setItem(40, safeClone(data.inventory[40], named(Material.SHIELD, ChatColor.GRAY + Lang.tr(viewer, "armor.empty.offhand"))));
+
+        for (int i = 41; i < 45; i++) {
+            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
+        }
+        for (int i = 46; i < 54; i++) {
+            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
+        }
+        inv.setItem(45, named(Material.ARROW, ChatColor.AQUA + Lang.tr(viewer, "ui.back")));
+        inv.setItem(47, named(Material.WRITTEN_BOOK, ChatColor.GOLD + Lang.tr(viewer, "ui.help")));
+        inv.setItem(49, named(Material.BARRIER, ChatColor.RED + Lang.tr(viewer, "ui.close")));
+    }
+
+    private void openOfflineEnderChest(Player admin, UUID targetId) {
+        OfflinePlayerData data = offlineData.get(targetId);
+        if (data == null) {
+            admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
+            return;
+        }
+        OfflinePlayer offline = Bukkit.getOfflinePlayer(targetId);
+        String name = data.name;
+        if ((name == null || name.isBlank()) && offline != null) {
+            name = offline.getName();
+        }
+        if (name == null || name.isBlank()) name = targetId.toString();
+        data.name = name;
+
+        Inventory inv = Bukkit.createInventory(admin, 36, titleOfflineEnder(admin, name));
+        offlineEnderTargetByViewer.put(admin.getUniqueId(), targetId);
+
+        for (int i = 0; i < 27; i++) {
+            inv.setItem(i, cloneOrNull(data.ender[i]));
+        }
+
+        for (int i = 27; i < 36; i++) {
+            inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
+        }
+        inv.setItem(27, named(Material.ARROW, ChatColor.AQUA + Lang.tr(admin, "ui.back")));
+        inv.setItem(31, named(Material.BARRIER, ChatColor.RED + Lang.tr(admin, "ui.close")));
+
+        admin.openInventory(inv);
+        admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.1f);
     }
 
     /* ====== Events ====== */
@@ -362,6 +694,12 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
             // Steuerleiste (Back/Close/Toggle/Help/Next)
             if (raw == 45) { e.setCancelled(true); openPlayerList(admin, 0); return; }
+            if (raw == 47) {
+                e.setCancelled(true);
+                int offPage = offlineListPageByViewer.getOrDefault(adminId, 0);
+                openOfflineList(admin, offPage);
+                return;
+            }
             if (raw == 49) { e.setCancelled(true); admin.closeInventory(); return; }
             if (raw == 48) {
                 e.setCancelled(true);
@@ -407,6 +745,124 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 }
                 return;
             }
+            return;
+        }
+
+        // ---- Offline-Spielerliste ----
+        if (title.equals(titleOfflinePlayers(admin))) {
+            if (e.getClickedInventory() == e.getView().getBottomInventory()) return;
+
+            e.setCancelled(true);
+            int page = offlineListPageByViewer.getOrDefault(adminId, 0);
+            int raw = e.getRawSlot();
+            ItemStack cur = e.getCurrentItem();
+
+            if (raw == 45 && page > 0) { openOfflineList(admin, page - 1); return; }
+            if (raw == 48) { openPlayerList(admin, lastListPageByViewer.getOrDefault(adminId, 0)); return; }
+            if (raw == 49) { admin.closeInventory(); return; }
+            if (raw == 50) { openHelpBook(admin); return; }
+            if (raw == 53) { openOfflineList(admin, page + 1); return; }
+
+            if (raw < 0 || raw >= 45 || cur == null || cur.getType() == Material.AIR) return;
+
+            UUID targetId = null;
+            if (cur.getItemMeta() instanceof SkullMeta skull && skull.getOwningPlayer() != null) {
+                targetId = skull.getOwningPlayer().getUniqueId();
+            }
+            if (targetId == null) {
+                admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
+                return;
+            }
+            if (!offlineData.containsKey(targetId)) {
+                admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
+                return;
+            }
+
+            if (e.getClick().isRightClick()) {
+                openOfflineEnderChest(admin, targetId);
+            } else {
+                openOfflineInventory(admin, targetId);
+            }
+            return;
+        }
+
+        // ---- Offline-Inventar ----
+        if (offlineInventoryTargetByViewer.containsKey(adminId)) {
+            if (e.getClickedInventory() == e.getView().getBottomInventory()) return;
+
+            Inventory top = e.getView().getTopInventory();
+            int raw = e.getRawSlot();
+            if (raw < 0 || raw >= top.getSize()) return;
+
+            if (raw == 45) {
+                e.setCancelled(true);
+                int page = offlineListPageByViewer.getOrDefault(adminId, 0);
+                openOfflineList(admin, page);
+                return;
+            }
+            if (raw == 47) { e.setCancelled(true); openHelpBook(admin); return; }
+            if (raw == 49) { e.setCancelled(true); admin.closeInventory(); return; }
+
+            if ((raw >= 41 && raw <= 44) || raw >= 46) {
+                e.setCancelled(true);
+                return;
+            }
+
+            if (raw >= 36 && raw <= 39) {
+                ItemStack cursor = e.getCursor();
+                if (cursor != null && cursor.getType() != Material.AIR) {
+                    EquipmentSlot slot = switch (raw) {
+                        case 36 -> EquipmentSlot.HEAD;
+                        case 37 -> EquipmentSlot.CHEST;
+                        case 38 -> EquipmentSlot.LEGS;
+                        case 39 -> EquipmentSlot.FEET;
+                        default -> EquipmentSlot.HAND;
+                    };
+                    if (!isAllowedInArmorSlot(cursor.getType(), slot)) {
+                        e.setCancelled(true);
+                        admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
+                        admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.invalid_armor_type"));
+                        return;
+                    }
+                    if (slot != EquipmentSlot.OFF_HAND && cursor.getAmount() > 1) {
+                        e.setCancelled(true);
+                        admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
+                        admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.armor_stack"));
+                        return;
+                    }
+                }
+            }
+
+            e.setCancelled(false);
+            Inventory topInv = top;
+            Bukkit.getScheduler().runTask(this, () -> syncOfflineInventoryFromGui(admin, topInv));
+            return;
+        }
+
+        // ---- Offline-Endertruhe ----
+        if (offlineEnderTargetByViewer.containsKey(adminId)) {
+            if (e.getClickedInventory() == e.getView().getBottomInventory()) return;
+
+            Inventory top = e.getView().getTopInventory();
+            int raw = e.getRawSlot();
+            if (raw < 0 || raw >= top.getSize()) return;
+
+            if (raw == 27) {
+                e.setCancelled(true);
+                int page = offlineListPageByViewer.getOrDefault(adminId, 0);
+                openOfflineList(admin, page);
+                return;
+            }
+            if (raw == 31) { e.setCancelled(true); admin.closeInventory(); return; }
+
+            if (raw >= 27) {
+                e.setCancelled(true);
+                return;
+            }
+
+            e.setCancelled(false);
+            Inventory topInv = top;
+            Bukkit.getScheduler().runTask(this, () -> syncOfflineEnderFromGui(admin, topInv));
             return;
         }
 
@@ -506,7 +962,6 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             // unten (Admin-Inventar) frei lassen
             if (e.getClickedInventory() == e.getView().getBottomInventory()) return;
 
-            e.setCancelled(true);
             UUID targetId = paletteTargetByViewer.get(adminId);
             if (targetId == null) return;
             Player target = Bukkit.getPlayer(targetId);
@@ -518,14 +973,44 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             int raw = e.getRawSlot();
             if (raw < 0 || raw >= e.getView().getTopInventory().getSize()) return;
             ItemStack clicked = e.getCurrentItem();
-            if (clicked == null || clicked.getType() == Material.AIR) return;
+
+            boolean editing = paletteEditable && paletteEditMode.contains(adminId);
+
+            // Toggle-Button (Slot 48)
+            if (paletteEditable && raw == 48) {
+                e.setCancelled(true);
+                if (editing) {
+                    syncPaletteFromGui(admin, e.getView().getTopInventory());
+                    paletteEditMode.remove(adminId);
+                } else {
+                    paletteEditMode.add(adminId);
+                }
+                openPaletteGui(admin, target, 0);
+                return;
+            }
 
             // Barrier = Zurück
-            if (raw == 49 && clicked.getType() == Material.BARRIER) {
+            if (raw == 49 && clicked != null && clicked.getType() == Material.BARRIER) {
+                e.setCancelled(true);
+                paletteEditMode.remove(adminId);
                 int page = lastListPageByViewer.getOrDefault(adminId, 0);
                 openPlayerList(admin, page);
                 return;
             }
+
+            if (editing) {
+                if (raw >= 45) {
+                    e.setCancelled(true);
+                    return;
+                }
+                e.setCancelled(false);
+                Inventory topInv = e.getView().getTopInventory();
+                Bukkit.getScheduler().runTask(this, () -> syncPaletteFromGui(admin, topInv));
+                return;
+            }
+
+            e.setCancelled(true);
+            if (clicked == null || clicked.getType() == Material.AIR) return;
 
             // Nur echte Items geben
             if (clicked.getType() != Material.GRAY_STAINED_GLASS_PANE && clicked.getType() != Material.BARRIER) {
@@ -575,13 +1060,33 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         // Armor/Palette-GUIs: nur reagieren, wenn DIESE GUIs wirklich geschlossen wurden
         boolean closedArmor = closedTitle.startsWith(ChatColor.stripColor(Lang.tr(admin, "ui.armor_title_prefix")));
         boolean closedPalette = closedTitle.startsWith(Lang.tr(admin, "ui.palette_title_prefix"));
+        boolean closedOfflineInv = closedTitle.startsWith(Lang.tr(admin, "ui.offline_inventory_prefix"));
+        boolean closedOfflineEnder = closedTitle.startsWith(Lang.tr(admin, "ui.offline_ender_prefix"));
 
         if (closedArmor) armorGuiTargetByViewer.remove(uid);
-        if (closedPalette) paletteTargetByViewer.remove(uid);
+        if (closedPalette) {
+            paletteTargetByViewer.remove(uid);
+            paletteEditMode.remove(uid);
+            syncPaletteFromGui(admin, e.getInventory());
+        }
+        if (closedOfflineInv) {
+            syncOfflineInventoryFromGui(admin, e.getInventory());
+            offlineInventoryTargetByViewer.remove(uid);
+        }
+        if (closedOfflineEnder) {
+            syncOfflineEnderFromGui(admin, e.getInventory());
+            offlineEnderTargetByViewer.remove(uid);
+        }
 
         if (backOnClose && (closedArmor || closedPalette)) {
             int page = lastListPageByViewer.getOrDefault(uid, 0);
             Bukkit.getScheduler().runTask(this, () -> openPlayerList(admin, page));
+            return;
+        }
+
+        if (backOnClose && (closedOfflineInv || closedOfflineEnder)) {
+            int page = offlineListPageByViewer.getOrDefault(uid, 0);
+            Bukkit.getScheduler().runTask(this, () -> openOfflineList(admin, page));
             return;
         }
 
@@ -595,8 +1100,22 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        Player player = e.getPlayer();
+        UUID uid = player.getUniqueId();
+        OfflinePlayerData data = offlineData.remove(uid);
+        if (data != null) {
+            player.getInventory().setContents(cloneArray(data.inventory, 41));
+            player.getEnderChest().setContents(cloneArray(data.ender, 27));
+            saveOfflineData();
+        }
+        storeOfflineData(player);
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         UUID targetId = e.getPlayer().getUniqueId();
+        storeOfflineData(e.getPlayer());
         Set<UUID> viewers = viewersByTarget.remove(targetId);
         if (viewers != null) {
             for (UUID v : viewers) {
@@ -608,6 +1127,9 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             }
         }
         deleteMode.remove(e.getPlayer().getUniqueId());
+        paletteEditMode.remove(e.getPlayer().getUniqueId());
+        offlineInventoryTargetByViewer.remove(e.getPlayer().getUniqueId());
+        offlineEnderTargetByViewer.remove(e.getPlayer().getUniqueId());
     }
 
     /* ====== Öffnen ====== */
@@ -673,6 +1195,19 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         for (int i = 45; i < 54; i++) {
             inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
         }
+        if (paletteEditable) {
+            boolean editing = paletteEditMode.contains(admin.getUniqueId());
+            Material toggleMat = editing ? Material.LIME_DYE : Material.RED_DYE;
+            String title = editing ? ChatColor.GREEN + Lang.tr(admin, "ui.palette_edit_on")
+                                   : ChatColor.GRAY + Lang.tr(admin, "ui.palette_edit_off");
+            List<String> lore = Arrays.asList(
+                    "§7" + Lang.tr(admin, "ui.palette_edit_tooltip1"),
+                    "§7" + Lang.tr(admin, "ui.palette_edit_tooltip2"),
+                    "§8" + Lang.tr(admin, "ui.palette_edit_hint1"),
+                    "§8" + Lang.tr(admin, "ui.palette_edit_hint2")
+            );
+            inv.setItem(48, named(toggleMat, title, lore));
+        }
         inv.setItem(49, named(Material.BARRIER, ChatColor.AQUA + Lang.tr(admin, "ui.back")));
 
         for (int i = 0; i < Math.min(45, paletteItems.size()); i++) {
@@ -680,5 +1215,29 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
 
         admin.openInventory(inv);
+    }
+
+    private static class OfflinePlayerData {
+        private final ItemStack[] inventory;
+        private final ItemStack[] ender;
+        private String name;
+
+        private OfflinePlayerData(String name, ItemStack[] inventory, ItemStack[] ender) {
+            this.name = name;
+            this.inventory = inventory != null ? inventory : new ItemStack[41];
+            this.ender = ender != null ? ender : new ItemStack[27];
+        }
+
+        private OfflinePlayerData copy() {
+            ItemStack[] inv = new ItemStack[inventory.length];
+            for (int i = 0; i < inventory.length; i++) {
+                inv[i] = inventory[i] != null ? inventory[i].clone() : null;
+            }
+            ItemStack[] ec = new ItemStack[ender.length];
+            for (int i = 0; i < ender.length; i++) {
+                ec[i] = ender[i] != null ? ender[i].clone() : null;
+            }
+            return new OfflinePlayerData(name, inv, ec);
+        }
     }
 }
