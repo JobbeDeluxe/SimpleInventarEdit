@@ -301,45 +301,6 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         return stack.clone();
     }
 
-    private ItemStack armorPlaceholder(Player viewer, EquipmentSlot slot) {
-        Material mat;
-        String key;
-        switch (slot) {
-            case HEAD -> {
-                mat = Material.LEATHER_HELMET;
-                key = "armor.empty.helmet";
-            }
-            case CHEST -> {
-                mat = Material.LEATHER_CHESTPLATE;
-                key = "armor.empty.chest";
-            }
-            case LEGS -> {
-                mat = Material.LEATHER_LEGGINGS;
-                key = "armor.empty.legs";
-            }
-            case FEET -> {
-                mat = Material.LEATHER_BOOTS;
-                key = "armor.empty.boots";
-            }
-            case OFF_HAND -> {
-                mat = Material.SHIELD;
-                key = "armor.empty.offhand";
-            }
-            default -> {
-                mat = Material.LEATHER_CHESTPLATE;
-                key = "armor.empty.chest";
-            }
-        }
-        ItemStack item = named(mat, ChatColor.GRAY + Lang.tr(viewer, key));
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null && placeholderKey != null) {
-            PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            pdc.set(placeholderKey, PersistentDataType.STRING, slot.name());
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
     private boolean isPlaceholder(ItemStack item, EquipmentSlot slot) {
         if (item == null || item.getType() == Material.AIR) return false;
         ItemMeta meta = item.getItemMeta();
@@ -626,25 +587,6 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             getLogger().log(Level.WARNING, "Could not read usercache.json", ex);
         }
         return known;
-    }
-
-    private void populateOfflineIndex() {
-        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
-            if (op == null) continue;
-            if (!op.hasPlayedBefore() && !op.isOnline()) continue;
-
-            UUID uuid = op.getUniqueId();
-            OfflinePlayerData data = offlineData.computeIfAbsent(uuid, id ->
-                    new OfflinePlayerData(null, new ItemStack[41], new ItemStack[27]));
-
-            String name = op.getName();
-            if (name == null || name.isBlank()) name = uuid.toString();
-            data.name = name;
-        }
-
-        if (!offlineData.isEmpty()) {
-            saveOfflineData();
-        }
     }
 
     private void saveOfflineData() {
@@ -1234,6 +1176,10 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 return;
             }
 
+            ItemStack clicked = e.getCurrentItem();
+            ItemStack cursor = e.getCursor();
+            boolean cursorEmpty = cursor == null || cursor.getType() == Material.AIR;
+
             if (raw >= 36 && raw <= 40) {
                 EquipmentSlot slot = switch (raw) {
                     case 36 -> EquipmentSlot.HEAD;
@@ -1250,7 +1196,6 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                     return;
                 }
 
-                ItemStack cursor = e.getCursor();
                 if (cursor != null && cursor.getType() != Material.AIR) {
                     if (!isAllowedInArmorSlot(cursor.getType(), slot)) {
                         e.setCancelled(true);
