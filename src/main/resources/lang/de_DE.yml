@@ -4,6 +4,7 @@ error:
   player_offline: "&cDer Spieler ist nicht mehr online."
   target_offline: "&cZielspieler ist offline."
   invalid_armor_type: "&cDieser Gegenstand passt nicht in diesen Slot."
+  armor_stack: "&cIn Rüstungsslots ist nur 1 Item erlaubt."
 
 info:
   target_left: "&eZielspieler hat den Server verlassen. Inventar geschlossen."
@@ -16,6 +17,20 @@ ui:
   palette_title: "SIE: Items -> {player}"
   palette_title_prefix: "SIE: Items"
   help: "Hilfe"   # Name des Hilfe-Buttons im Player-UI
+  offline_players_title: "SIE: Offline-Spieler"
+  offline_inventory_title: "SIE: Offline-Inventar - {player}"
+  offline_inventory_prefix: "SIE: Offline-Inventar"
+  offline_ender_title: "SIE: Offline-Endertruhe - {player}"
+  offline_ender_prefix: "SIE: Offline-Endertruhe"
+  offline_toggle: "Offline-Spieler"
+  offline_no_data: "&cFür diesen Spieler sind noch keine Daten gespeichert."
+  palette_edit_on: "Palette bearbeiten: AN"
+  palette_edit_off: "Palette bearbeiten: AUS"
+  palette_edit_hint1: "Items oben platzieren/entfernen."
+  palette_edit_hint2: "Änderungen werden automatisch gespeichert."
+  offline_toggle_hint1: "Offline-Spieler durchsuchen und bearbeiten"
+  offline_toggle_hint2: "Verwendet die zuletzt gespeicherten Daten"
+  offline_back: "Zurück zur Online-Liste"
 
   # Allgemeine Buttons
   back: "Zurück"
@@ -27,6 +42,10 @@ ui:
   delete_mode_off: "Löschmodus: AUS"
   delete_mode_hint1: "Klick = Stapel löschen"
   delete_mode_hint2: "Rechtsklick = um 1 reduzieren"
+  palette_edit_tooltip1: "Klicken zum Bearbeiten der Palette"
+  palette_edit_tooltip2: "Oberes Inventar wird editierbar"
+  offline_inventory_hint: "Linksklick: Offline-Inventar (inkl. Rüstung)"
+  offline_ender_hint: "Rechtsklick: Offline-Endertruhe"
 
   # (Kompatibilität für ältere Builds)
   list_lore_inv: "Linksklick: Inventar öffnen"
