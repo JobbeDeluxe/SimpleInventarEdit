@@ -1092,19 +1092,21 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             boolean cursorEmpty = cursor == null || cursor.getType() == Material.AIR;
 
             if (raw >= 36 && raw <= 40) {
-                if (cursorEmpty && isPlaceholder(clicked)) {
-                    e.setCancelled(true);
-                    return;
-                }
-                if (!cursorEmpty && cursor != null) {
-                    EquipmentSlot slot = switch (raw) {
-                        case 36 -> EquipmentSlot.HEAD;
-                        case 37 -> EquipmentSlot.CHEST;
-                        case 38 -> EquipmentSlot.LEGS;
-                        case 39 -> EquipmentSlot.FEET;
-                        case 40 -> EquipmentSlot.OFF_HAND;
-                        default -> EquipmentSlot.HAND;
-                    };
+                EquipmentSlot slot = switch (raw) {
+                    case 36 -> EquipmentSlot.HEAD;
+                    case 37 -> EquipmentSlot.CHEST;
+                    case 38 -> EquipmentSlot.LEGS;
+                    case 39 -> EquipmentSlot.FEET;
+                    case 40 -> EquipmentSlot.OFF_HAND;
+                    default -> EquipmentSlot.HAND;
+                };
+
+                if (cursorEmpty) {
+                    if (isPlaceholder(clicked, slot)) {
+                        e.setCancelled(true);
+                        return;
+                    }
+                } else if (cursor != null) {
                     if (!isAllowedInArmorSlot(cursor.getType(), slot)) {
                         e.setCancelled(true);
                         admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
@@ -1115,6 +1117,19 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                         e.setCancelled(true);
                         admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
                         admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.armor_stack"));
+                        return;
+                    }
+
+                    if (isPlaceholder(clicked, slot)) {
+                        e.setCancelled(true);
+                        ItemStack toPlace = cursor.clone();
+                        if (slot != EquipmentSlot.OFF_HAND) {
+                            toPlace.setAmount(1);
+                        }
+                        top.setItem(raw, toPlace);
+                        e.setCursor(new ItemStack(Material.AIR));
+                        Inventory topInv = top;
+                        Bukkit.getScheduler().runTask(this, () -> syncOnlineInventoryFromGui(admin, topInv));
                         return;
                     }
                 }
@@ -1207,6 +1222,19 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                         e.setCancelled(true);
                         admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
                         admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.armor_stack"));
+                        return;
+                    }
+
+                    if (isPlaceholder(current, slot)) {
+                        e.setCancelled(true);
+                        ItemStack toPlace = cursor.clone();
+                        if (slot != EquipmentSlot.OFF_HAND) {
+                            toPlace.setAmount(1);
+                        }
+                        top.setItem(raw, toPlace);
+                        e.setCursor(new ItemStack(Material.AIR));
+                        Inventory topInv = top;
+                        Bukkit.getScheduler().runTask(this, () -> syncOfflineInventoryFromGui(admin, topInv));
                         return;
                     }
                 }
