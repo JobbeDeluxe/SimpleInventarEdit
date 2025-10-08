@@ -28,9 +28,15 @@ jobs:
       - name: Build with Maven
         run: mvn -B -DskipTests package
 
+      - name: Read project version
+        id: project_version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SimpleInventarEdit-jar
-          path: target/*.jar
+          name: SimpleInventarEdit-${{ steps.project_version.outputs.version }}
+          path: target/SimpleInventarEdit-${{ steps.project_version.outputs.version }}.jar
           if-no-files-found: error
