@@ -24,6 +24,7 @@ import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import net.md_5.bungee.api.chat.BaseComponent;
@@ -32,11 +33,17 @@ import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
@@ -290,8 +297,86 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     private ItemStack safeClone(ItemStack stack, ItemStack fallbackIfAir) {
-        if (stack == null || stack.getType() == Material.AIR || isPlaceholder(stack)) return fallbackIfAir;
+        if (stack == null || stack.getType() == Material.AIR) return fallbackIfAir;
         return stack.clone();
+    }
+
+    private ItemStack armorPlaceholder(Player viewer, EquipmentSlot slot) {
+        Material mat;
+        String key;
+        switch (slot) {
+            case HEAD -> {
+                mat = Material.LEATHER_HELMET;
+                key = "armor.empty.helmet";
+            }
+            case CHEST -> {
+                mat = Material.LEATHER_CHESTPLATE;
+                key = "armor.empty.chest";
+            }
+            case LEGS -> {
+                mat = Material.LEATHER_LEGGINGS;
+                key = "armor.empty.legs";
+            }
+            case FEET -> {
+                mat = Material.LEATHER_BOOTS;
+                key = "armor.empty.boots";
+            }
+            case OFF_HAND -> {
+                mat = Material.SHIELD;
+                key = "armor.empty.offhand";
+            }
+            default -> {
+                mat = Material.LEATHER_CHESTPLATE;
+                key = "armor.empty.chest";
+            }
+        }
+        ItemStack item = named(mat, ChatColor.GRAY + Lang.tr(viewer, key));
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null && placeholderKey != null) {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(placeholderKey, PersistentDataType.STRING, slot.name());
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private boolean isPlaceholder(ItemStack item, EquipmentSlot slot) {
+        if (item == null || item.getType() == Material.AIR) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null && placeholderKey != null) {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            if (pdc.has(placeholderKey, PersistentDataType.STRING)) {
+                String tag = pdc.get(placeholderKey, PersistentDataType.STRING);
+                if (slot == null) return true;
+                if (tag != null && tag.equals(slot.name())) return true;
+            }
+        }
+        if (meta != null && meta.hasDisplayName()) {
+            String stripped = ChatColor.stripColor(meta.getDisplayName());
+            if (slot != null) {
+                Set<String> legacy = LEGACY_PLACEHOLDER_NAMES.get(slot);
+                if (legacy != null && stripped != null && legacy.contains(stripped)) return true;
+            } else {
+                for (Set<String> legacy : LEGACY_PLACEHOLDER_NAMES.values()) {
+                    if (legacy.contains(stripped)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private ItemStack sanitizeArmorSlot(ItemStack stack, EquipmentSlot slot) {
+        if (isPlaceholder(stack, slot)) return null;
+        return cloneOrNull(stack);
+    }
+
+    private void cleanupOfflinePlaceholders(OfflinePlayerData data) {
+        if (data == null || data.inventory == null) return;
+        data.inventory[39] = sanitizeArmorSlot(data.inventory[39], EquipmentSlot.HEAD);
+        data.inventory[38] = sanitizeArmorSlot(data.inventory[38], EquipmentSlot.CHEST);
+        data.inventory[37] = sanitizeArmorSlot(data.inventory[37], EquipmentSlot.LEGS);
+        data.inventory[36] = sanitizeArmorSlot(data.inventory[36], EquipmentSlot.FEET);
+        data.inventory[40] = sanitizeArmorSlot(data.inventory[40], EquipmentSlot.OFF_HAND);
     }
 
     private void addViewer(Player admin, Player target) {
@@ -454,8 +539,93 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             String name = cfg.getString(base + "name", uuid.toString());
             ItemStack[] inv = deserializeItems(cfg.getList(base + "inventory"), 41);
             ItemStack[] ender = deserializeItems(cfg.getList(base + "ender"), 27);
-            offlineData.put(uuid, new OfflinePlayerData(name, inv, ender));
+            OfflinePlayerData data = new OfflinePlayerData(name, inv, ender);
+            cleanupOfflinePlaceholders(data);
+            offlineData.put(uuid, data);
         }
+    }
+
+    private void populateOfflineIndex() {
+        Map<UUID, String> known = new HashMap<>();
+        for (Map.Entry<UUID, OfflinePlayerData> entry : offlineData.entrySet()) {
+            OfflinePlayerData data = entry.getValue();
+            if (data != null && data.name != null && !data.name.isBlank()) {
+                known.put(entry.getKey(), data.name);
+            }
+        }
+
+        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
+            if (op == null) continue;
+            UUID uuid = op.getUniqueId();
+            String name = op.getName();
+            if (name != null && !name.isBlank()) {
+                known.put(uuid, name);
+            } else if (!known.containsKey(uuid)) {
+                known.put(uuid, uuid.toString());
+            }
+        }
+
+        known.putAll(readKnownPlayersFromUsercache());
+
+        boolean changed = false;
+        for (Map.Entry<UUID, String> entry : known.entrySet()) {
+            UUID uuid = entry.getKey();
+            String name = entry.getValue();
+            if (name == null || name.isBlank()) {
+                name = uuid.toString();
+            }
+            OfflinePlayerData data = offlineData.get(uuid);
+            if (data == null) {
+                offlineData.put(uuid, new OfflinePlayerData(name, new ItemStack[41], new ItemStack[27]));
+                changed = true;
+            } else if (data.name == null || data.name.isBlank()) {
+                data.name = name;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            saveOfflineData();
+        }
+    }
+
+    private Map<UUID, String> readKnownPlayersFromUsercache() {
+        Map<UUID, String> known = new HashMap<>();
+        File container = getServer().getWorldContainer();
+        if (container == null) return known;
+        File cache = new File(container, "usercache.json");
+        if (!cache.isFile()) return known;
+
+        Pattern entryPattern = Pattern.compile("\\{([^}]*)\\}");
+        Pattern uuidPattern = Pattern.compile("\"uuid\"\\s*:\\s*\"([^\"]+)\"");
+        Pattern namePattern = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(cache), StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            Matcher entryMatcher = entryPattern.matcher(sb.toString());
+            while (entryMatcher.find()) {
+                String body = entryMatcher.group(1);
+                Matcher uuidMatcher = uuidPattern.matcher(body);
+                Matcher nameMatcher = namePattern.matcher(body);
+                if (uuidMatcher.find() && nameMatcher.find()) {
+                    try {
+                        UUID uuid = UUID.fromString(uuidMatcher.group(1));
+                        String name = nameMatcher.group(1);
+                        if (name != null && !name.isBlank()) {
+                            known.putIfAbsent(uuid, name);
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            getLogger().log(Level.WARNING, "Could not read usercache.json", ex);
+        }
+        return known;
     }
 
     private void populateOfflineIndex() {
@@ -520,11 +690,11 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             data.inventory[slot] = cloneOrNull(inv.getItem(slot));
         }
         // Armor/offhand mapping to player inventory indexes
-        data.inventory[39] = cloneOrNull(inv.getItem(36)); // helmet
-        data.inventory[38] = cloneOrNull(inv.getItem(37)); // chestplate
-        data.inventory[37] = cloneOrNull(inv.getItem(38)); // leggings
-        data.inventory[36] = cloneOrNull(inv.getItem(39)); // boots
-        data.inventory[40] = cloneOrNull(inv.getItem(40)); // offhand
+        data.inventory[39] = sanitizeArmorSlot(inv.getItem(36), EquipmentSlot.HEAD); // helmet
+        data.inventory[38] = sanitizeArmorSlot(inv.getItem(37), EquipmentSlot.CHEST); // chestplate
+        data.inventory[37] = sanitizeArmorSlot(inv.getItem(38), EquipmentSlot.LEGS); // leggings
+        data.inventory[36] = sanitizeArmorSlot(inv.getItem(39), EquipmentSlot.FEET); // boots
+        data.inventory[40] = sanitizeArmorSlot(inv.getItem(40), EquipmentSlot.OFF_HAND); // offhand
 
         saveOfflineData();
         ensureInventoryPlaceholders(inv, admin);
@@ -1064,23 +1234,24 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 return;
             }
 
-            ItemStack clicked = e.getCurrentItem();
-            ItemStack cursor = e.getCursor();
-            boolean cursorEmpty = cursor == null || cursor.getType() == Material.AIR;
+            if (raw >= 36 && raw <= 40) {
+                EquipmentSlot slot = switch (raw) {
+                    case 36 -> EquipmentSlot.HEAD;
+                    case 37 -> EquipmentSlot.CHEST;
+                    case 38 -> EquipmentSlot.LEGS;
+                    case 39 -> EquipmentSlot.FEET;
+                    case 40 -> EquipmentSlot.OFF_HAND;
+                    default -> EquipmentSlot.HAND;
+                };
 
-            if (raw >= 36 && raw <= 39) {
-                if (cursorEmpty && isPlaceholder(clicked)) {
+                ItemStack current = top.getItem(raw);
+                if ((e.getCursor() == null || e.getCursor().getType() == Material.AIR) && isPlaceholder(current, slot)) {
                     e.setCancelled(true);
                     return;
                 }
-                if (!cursorEmpty && cursor != null) {
-                    EquipmentSlot slot = switch (raw) {
-                        case 36 -> EquipmentSlot.HEAD;
-                        case 37 -> EquipmentSlot.CHEST;
-                        case 38 -> EquipmentSlot.LEGS;
-                        case 39 -> EquipmentSlot.FEET;
-                        default -> EquipmentSlot.HAND;
-                    };
+
+                ItemStack cursor = e.getCursor();
+                if (cursor != null && cursor.getType() != Material.AIR) {
                     if (!isAllowedInArmorSlot(cursor.getType(), slot)) {
                         e.setCancelled(true);
                         admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
@@ -1479,11 +1650,11 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         inv.clear();
         PlayerInventory pi = target.getInventory();
 
-        inv.setItem(0, safeClone(pi.getHelmet(),        named(Material.LEATHER_HELMET,     ChatColor.GRAY + Lang.tr(target, "armor.empty.helmet"))));
-        inv.setItem(1, safeClone(pi.getChestplate(),    named(Material.LEATHER_CHESTPLATE, ChatColor.GRAY + Lang.tr(target, "armor.empty.chest"))));
-        inv.setItem(2, safeClone(pi.getLeggings(),      named(Material.LEATHER_LEGGINGS,   ChatColor.GRAY + Lang.tr(target, "armor.empty.legs"))));
-        inv.setItem(3, safeClone(pi.getBoots(),         named(Material.LEATHER_BOOTS,      ChatColor.GRAY + Lang.tr(target, "armor.empty.boots"))));
-        inv.setItem(4, safeClone(pi.getItemInOffHand(), named(Material.SHIELD,             ChatColor.GRAY + Lang.tr(target, "armor.empty.offhand"))));
+        inv.setItem(0, safeClone(pi.getHelmet(),        armorPlaceholder(target, EquipmentSlot.HEAD)));
+        inv.setItem(1, safeClone(pi.getChestplate(),    armorPlaceholder(target, EquipmentSlot.CHEST)));
+        inv.setItem(2, safeClone(pi.getLeggings(),      armorPlaceholder(target, EquipmentSlot.LEGS)));
+        inv.setItem(3, safeClone(pi.getBoots(),         armorPlaceholder(target, EquipmentSlot.FEET)));
+        inv.setItem(4, safeClone(pi.getItemInOffHand(), armorPlaceholder(target, EquipmentSlot.OFF_HAND)));
 
         for (int i = 5; i <= 7; i++) {
             inv.setItem(i, named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + " "));
