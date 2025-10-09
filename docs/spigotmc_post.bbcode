@@ -1,0 +1,122 @@
+[CENTER][B][SIZE=6]SimpleInventarEdit[/SIZE][/B]
+[SIZE=4]In-game Inventory Management for Operators (Paper 1.21.x)[/SIZE]
+[SIZE=3]Version 2.3.0[/SIZE][/CENTER]
+
+[B][COLOR=#55AAFF]✨ Features[/COLOR][/B]
+[LIST]
+[*][B]/sie[/B] or [B]/siegui[/B] opens a clean [I]Player List[/I].
+[*][B]Left-click[/B]: target inventory (vanilla view; your own inventory is visible at the bottom).
+[*][B]Right-click[/B]: [I]Armor/Offhand[/I] (read-only) with a [I]Back[/I] button.
+[*][B]Shift-click[/B]: player’s Ender Chest.
+[*][B]Q / Ctrl+Q / Middle-click[/B]: configurable [I]Item Palette[/I] (full stack / single item).
+[*][B]Compass icon[/B]: browse stored [I]Offline Players[/I] (inventories, armor/offhand, ender chest).
+[*][B]Bucket icon[/B]: toggle [I]Delete Mode[/I] (left-click = delete stack, right-click = minus one).
+[*][B]Book icon[/B]: open the multilingual in-game [I]Help Book[/I] (English & German).
+[*]Optional [I]Back on close[/I]: after ESC/E, return to the player list.
+[*]No web UI, no extra ports – everything in-game. Only [ICODE]sie.use[/ICODE] required.
+[/LIST]
+
+[B][COLOR=#55AAFF]✅ Compatibility[/COLOR][/B]
+[LIST]
+[*][B]Server:[/B] Paper 1.21.x (tested 1.21.4)
+[*][B]Java:[/B] 17+
+[*]Usually works on Spigot as well, [I]Paper recommended[/I].
+[/LIST]
+
+[B][COLOR=#55AAFF]Installation[/COLOR][/B]
+[LIST=1]
+[*]Put [ICODE]SimpleInventarEdit-<version>.jar[/ICODE] into [ICODE]plugins/[/ICODE].
+[*]Start the server (creates [ICODE]plugins/SimpleInventarEdit/config.yml[/ICODE]).
+[*](Optional) Adjust [I]Back on close[/I] & the [I]Palette[/I].
+[*]Grant permission (e.g., with LuckPerms):
+[CODE]lp user <YourName> permission set sie.use true[/CODE]
+[*]In game: [ICODE]/sie[/ICODE] [ICODE]/siegui[/ICODE]
+[/LIST]
+
+[B][COLOR=#55AAFF]Toolbar Cheatsheet[/COLOR][/B]
+[LIST]
+[*][B]Bucket icon[/B]: Delete Mode (stacks vs. minus one).
+[*][B]Compass icon[/B]: toggle offline player browser.
+[*][B]Book icon[/B]: Help Book (EN/DE) with all shortcuts.
+[/LIST]
+
+[B][COLOR=#55AAFF]Permissions[/COLOR][/B]
+[TABLE]
+[TR][TD][B]sie.use[/B][/TD][TD]Opens the Player List & all GUIs[/TD][TD]OP[/TD][/TR]
+[/TABLE]
+
+[B][COLOR=#55AAFF]⌨️ Command[/COLOR][/B]
+[ICODE]/sie[/ICODE]
+[ICODE]/siegui[/ICODE]
+
+[B][COLOR=#55AAFF]⚙️ Configuration (excerpt)[/COLOR][/B]
+[CODE]
+navigation:
+  backOnClose: true
+
+palette:
+  enabled: true
+  items:
+    - STONE
+    - COBBLESTONE
+    - DEEPSLATE
+    - OAK_LOG
+    - OAK_PLANKS
+    - CRAFTING_TABLE
+    - FURNACE
+    - CHEST
+    - ENDER_CHEST
+    - SHULKER_BOX
+    - BARREL
+    - TORCH
+    - LANTERN
+    - WHITE_BED
+    - BREAD
+    - COOKED_BEEF
+    - GOLDEN_CARROT
+    - WATER_BUCKET
+    - LAVA_BUCKET
+    - BUCKET
+    - IRON_INGOT
+    - GOLD_INGOT
+    - DIAMOND
+    - NETHERITE_INGOT
+    - IRON_PICKAXE
+    - DIAMOND_PICKAXE
+    - NETHERITE_PICKAXE
+    - IRON_AXE
+    - DIAMOND_AXE
+    - NETHERITE_AXE
+    - IRON_SHOVEL
+    - DIAMOND_SHOVEL
+    - NETHERITE_SHOVEL
+    - BOW
+    - CROSSBOW
+    - ARROW
+    - TOTEM_OF_UNDYING
+    - SPYGLASS
+    - MAP
+    - SHIELD
+    - FLINT_AND_STEEL
+    - SHEARS
+    - ELYTRA
+    - FIREWORK_ROCKET
+    - ENCHANTING_TABLE
+    - ANVIL
+    - GRINDSTONE
+    - SMITHING_TABLE
+[/CODE]
+[SIZE=2]• Material names must be valid Spigot/Paper enums (e.g., DIAMOND_PICKAXE). Invalid entries are logged and ignored.[/SIZE]
+
+[B][COLOR=#55AAFF]🆕 2.3.0 Highlights[/COLOR][/B]
+[LIST]
+[*]Expanded in-game Help Book (EN/DE) covering palette editing, offline workflow, and delete mode.
+[*]Improved player list toolbar with Compass (offline list) & Bucket (delete mode) callouts.
+[*]README & help pages updated for the latest workflow.
+[/LIST]
+
+[B]Screenshots
+[ATTACH=full]915040[/ATTACH] [/B]
+[ATTACH=full]914476[/ATTACH]
+[ATTACH=full]914477[/ATTACH]
+[ATTACH=full]914478[/ATTACH]
