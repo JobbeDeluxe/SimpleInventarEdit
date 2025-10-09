@@ -549,8 +549,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         Map<String, UUID> knownNames = buildKnownNameIndex();
 
         for (String key : cfg.getConfigurationSection("players").getKeys(false)) {
-            String base = "players." + key + ".";
-            String storedName = cfg.getString(base + "name");
+            String base = "players." + key;
+            String storedName = cfg.getString(base + ".name");
             UUID uuid = resolveOfflineDataKey(key, storedName, knownNames);
             if (uuid == null) {
                 getLogger().log(Level.WARNING, "Skipping offline data entry with unknown key: " + key);
@@ -569,8 +569,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             if (name == null || name.isBlank()) {
                 name = uuid.toString();
             }
-            ItemStack[] inv = deserializeItems(cfg.get(base + "inventory"), 41);
-            ItemStack[] ender = deserializeItems(cfg.get(base + "ender"), 27);
+            ItemStack[] inv = deserializeItems(cfg.get(base + ".inventory"), 41);
+            ItemStack[] ender = deserializeItems(cfg.get(base + ".ender"), 27);
             OfflinePlayerData data = new OfflinePlayerData(name, inv, ender);
             cleanupOfflinePlaceholders(data);
             OfflinePlayerData existing = offlineData.get(uuid);
