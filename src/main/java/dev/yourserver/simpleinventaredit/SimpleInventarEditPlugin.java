@@ -489,20 +489,144 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(offlineDataFile);
         if (!cfg.isConfigurationSection("players")) return;
 
+        Map<String, UUID> knownNames = buildKnownNameIndex();
+
         for (String key : cfg.getConfigurationSection("players").getKeys(false)) {
-            UUID uuid;
-            try {
-                uuid = UUID.fromString(key);
-            } catch (IllegalArgumentException ex) {
+            String base = "players." + key + ".";
+            String storedName = cfg.getString(base + "name");
+            UUID uuid = resolveOfflineDataKey(key, storedName, knownNames);
+            if (uuid == null) {
+                getLogger().log(Level.WARNING, "Skipping offline data entry with unknown key: " + key);
                 continue;
             }
-            String base = "players." + key + ".";
-            String name = cfg.getString(base + "name", uuid.toString());
+            String name = storedName;
+            if (name == null || name.isBlank() || isLikelyUuidName(name)) {
+                OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
+                if (offline != null) {
+                    String offlineName = offline.getName();
+                    if (offlineName != null && !offlineName.isBlank()) {
+                        name = offlineName;
+                    }
+                }
+            }
+            if (name == null || name.isBlank()) {
+                name = uuid.toString();
+            }
             ItemStack[] inv = deserializeItems(cfg.getList(base + "inventory"), 41);
             ItemStack[] ender = deserializeItems(cfg.getList(base + "ender"), 27);
             OfflinePlayerData data = new OfflinePlayerData(name, inv, ender);
             cleanupOfflinePlaceholders(data);
-            offlineData.put(uuid, data);
+            OfflinePlayerData existing = offlineData.get(uuid);
+            if (existing != null) {
+                mergeOfflineData(existing, data);
+            } else {
+                offlineData.put(uuid, data);
+            }
+        }
+    }
+
+    private Map<String, UUID> buildKnownNameIndex() {
+        Map<String, UUID> index = new HashMap<>();
+
+        for (OfflinePlayer op : Bukkit.getOfflinePlayers()) {
+            if (op == null) continue;
+            String name = op.getName();
+            if (name != null && !name.isBlank()) {
+                index.putIfAbsent(name.toLowerCase(Locale.ROOT), op.getUniqueId());
+            }
+        }
+
+        Map<UUID, String> fromCache = readKnownPlayersFromUsercache();
+        for (Map.Entry<UUID, String> entry : fromCache.entrySet()) {
+            String name = entry.getValue();
+            if (name != null && !name.isBlank()) {
+                index.putIfAbsent(name.toLowerCase(Locale.ROOT), entry.getKey());
+            }
+        }
+
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online == null) continue;
+            String name = online.getName();
+            if (name != null && !name.isBlank()) {
+                index.put(name.toLowerCase(Locale.ROOT), online.getUniqueId());
+            }
+        }
+
+        return index;
+    }
+
+    private UUID resolveOfflineDataKey(String rawKey, String storedName, Map<String, UUID> knownNames) {
+        try {
+            return UUID.fromString(rawKey);
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        if (storedName != null && !storedName.isBlank()) {
+            UUID resolved = resolveOfflineDataKeyByName(storedName, knownNames);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+
+        if (rawKey != null && !rawKey.isBlank()) {
+            return resolveOfflineDataKeyByName(rawKey, knownNames);
+        }
+        return null;
+    }
+
+    private UUID resolveOfflineDataKeyByName(String name, Map<String, UUID> knownNames) {
+        if (name == null) return null;
+        UUID cached = knownNames.get(name.toLowerCase(Locale.ROOT));
+        if (cached != null) {
+            return cached;
+        }
+
+        try {
+            OfflinePlayer offline = Bukkit.getOfflinePlayer(name);
+            if (offline != null) {
+                UUID uuid = offline.getUniqueId();
+                if (uuid != null) {
+                    return uuid;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        Player online = Bukkit.getPlayerExact(name);
+        if (online != null) {
+            return online.getUniqueId();
+        }
+        return null;
+    }
+
+    private void mergeOfflineData(OfflinePlayerData target, OfflinePlayerData source) {
+        if (target == null || source == null) return;
+
+        if ((target.name == null || target.name.isBlank() || isLikelyUuidName(target.name))
+                && source.name != null && !source.name.isBlank()) {
+            target.name = source.name;
+        }
+
+        for (int i = 0; i < Math.min(target.inventory.length, source.inventory.length); i++) {
+            if (target.inventory[i] == null && source.inventory[i] != null) {
+                target.inventory[i] = cloneOrNull(source.inventory[i]);
+            }
+        }
+
+        for (int i = 0; i < Math.min(target.ender.length, source.ender.length); i++) {
+            if (target.ender[i] == null && source.ender[i] != null) {
+                target.ender[i] = cloneOrNull(source.ender[i]);
+            }
+        }
+    }
+
+    private boolean isLikelyUuidName(String name) {
+        if (name == null) return false;
+        try {
+            UUID.fromString(name);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
         }
     }
 
