@@ -61,11 +61,15 @@ ui:
   help_palette_r: "Rechtsklick: 1 Item geben"
 
 help:
+  page_players_basic_title: "Spielerliste – Grundlagen"
+  page_players_palette_title: "Spielerliste – Palette & Shortcuts"
   click_left_inv: "Linksklick: Inventar öffnen"
   click_right_armor: "Rechtsklick: Rüstung/Offhand (ansehen & bearbeiten)"
   shift_click_ender: "Shift-Klick: Endertruhe"
   q_palette: "Q/Strg+Q/Mittelklick: Item-Palette (Stacks / einzeln)"
-  middle_creative: "(Mittelklick nur im Kreativmodus)"
+  middle_creative: "Mittelklick funktioniert nur im Kreativmodus"
+  palette_edit_toggle: "Klicke auf den Eimer, um die Schnell-Palette zu bearbeiten"
+  palette_edit_auto: "Änderungen werden sofort in der config.yml gespeichert"
   armor_title: "Rüstung & Offhand"
   armor_put_take: "Items durch Klicken setzen/nehmen"
   armor_offhand: "In die Offhand darf jedes Item"
@@ -74,6 +78,11 @@ help:
   delete_mode_long1: "Wenn AN, wirken Klicks im OBEREN Inventar auf das Ziel."
   delete_mode_long2: "Linksklick löscht den gesamten Stapel."
   delete_mode_long3: "Rechtsklick reduziert den Stapel um 1."
+  offline_title: "Offline-Spieler"
+  offline_browse: "Kompass-Button: gespeicherte Offline-Spieler durchsuchen"
+  offline_inventory: "Linksklick: Offline-Inventar (inkl. Rüstung)"
+  offline_ender: "Rechtsklick: Offline-Endertruhe"
+  offline_apply: "Änderungen greifen beim nächsten Login"
 
 armor:
   empty:

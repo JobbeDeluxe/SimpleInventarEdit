@@ -61,11 +61,15 @@ ui:
   help_palette_r: "Right-click: give 1 item"
 
 help:
+  page_players_basic_title: "Player List – Basics"
+  page_players_palette_title: "Player List – Palette & Shortcuts"
   click_left_inv: "Left-click: open inventory"
   click_right_armor: "Right-click: armor/offhand (view & edit)"
   shift_click_ender: "Shift-click: ender chest"
   q_palette: "Q/Ctrl+Q/Middle: item palette (stacks / single)"
-  middle_creative: "(Middle-click Creative only)"
+  middle_creative: "Middle-click works in Creative only"
+  palette_edit_toggle: "Toggle the bucket icon to edit the quick-give palette"
+  palette_edit_auto: "Changes save instantly back to config.yml"
   armor_title: "Armor & Offhand"
   armor_put_take: "Place/take items by clicking"
   armor_offhand: "Offhand accepts any item"
@@ -74,6 +78,11 @@ help:
   delete_mode_long1: "When ON, clicks in the TOP inventory affect target items."
   delete_mode_long2: "Left-click deletes the entire stack."
   delete_mode_long3: "Right-click reduces the stack by 1."
+  offline_title: "Offline Players"
+  offline_browse: "Compass button: browse stored offline players"
+  offline_inventory: "Left-click: offline inventory (includes armor)"
+  offline_ender: "Right-click: offline Ender Chest"
+  offline_apply: "Changes apply the next time the player joins"
 
 armor:
   empty:

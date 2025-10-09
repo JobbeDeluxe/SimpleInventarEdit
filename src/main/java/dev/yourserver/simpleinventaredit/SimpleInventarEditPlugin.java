@@ -1151,32 +1151,34 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 				return new ComponentBuilder("\n\n").append(link).create(); // Abstand + Link
 			};
 
-			// Seite 1/2: Navigation – bis VOR Q, dann direkt der Zurück-Link
-			BaseComponent[] page1 = new ComponentBuilder()
-					.append(Lang.tr(p,"ui.players_title") + " (1/2)").bold(true).append("\n\n").bold(false)
-					.append("• ").append(Lang.tr(p,"help.click_left_inv")).append("\n\n")
-					.append("• ").append(Lang.tr(p,"help.click_right_armor")).append("\n\n")
-					.append("• ").append(Lang.tr(p,"help.shift_click_ender"))
-					.append(backLink.get()) // <-- Hier statt Q
-					.create();
+                        // Seite 1: Spielerliste – Grundlagen
+                        BaseComponent[] page1 = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.page_players_basic_title")).bold(true).append("\n\n").bold(false)
+                                        .append("• ").append(Lang.tr(p,"help.click_left_inv")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.click_right_armor")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.shift_click_ender"))
+                                        .append(backLink.get())
+                                        .create();
 
-			// Seite 2/2: Rest der Navigation – Q/Palette + Middle-Click
-			ComponentBuilder page2Builder = new ComponentBuilder()
-					.append(Lang.tr(p,"ui.players_title") + " (2/2)").bold(true).append("\n\n").bold(false);
-			if (enablePalette) {
-				page2Builder.append("• ").append(Lang.tr(p,"help.q_palette")).append("\n\n");
-			}
-			BaseComponent[] page2 = page2Builder
-					.append(Lang.tr(p,"help.middle_creative"))
-					.append(backLink.get())
-					.create();
+                        // Seite 2: Spielerliste – Palette & Shortcuts
+                        ComponentBuilder page2Builder = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.page_players_palette_title")).bold(true).append("\n\n").bold(false);
+                        if (enablePalette) {
+                                page2Builder.append("• ").append(Lang.tr(p,"help.q_palette")).append("\n\n");
+                                page2Builder.append("• ").append(Lang.tr(p,"help.palette_edit_toggle")).append("\n\n");
+                                page2Builder.append("• ").append(Lang.tr(p,"help.palette_edit_auto")).append("\n\n");
+                                page2Builder.append("• ").append(Lang.tr(p,"help.middle_creative"));
+                        }
+                        BaseComponent[] page2 = page2Builder
+                                        .append(backLink.get())
+                                        .create();
 
-			// Seite 3: Armor & Offhand
-			BaseComponent[] page3 = new ComponentBuilder()
-					.append(Lang.tr(p,"help.armor_title")).bold(true).append("\n\n").bold(false)
-					.append("• ").append(Lang.tr(p,"help.armor_put_take")).append("\n\n")
-					.append("• ").append(Lang.tr(p,"help.armor_offhand")).append("\n\n")
-					.append("• ").append(Lang.tr(p,"help.armor_types"))
+                        // Seite 3: Armor & Offhand
+                        BaseComponent[] page3 = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.armor_title")).bold(true).append("\n\n").bold(false)
+                                        .append("• ").append(Lang.tr(p,"help.armor_put_take")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.armor_offhand")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.armor_types"))
 					.append(backLink.get())
 					.create();
 
@@ -1184,12 +1186,22 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 			BaseComponent[] page4 = new ComponentBuilder()
 					.append(Lang.tr(p,"help.delete_mode_title")).bold(true).append("\n\n").bold(false)
 					.append(Lang.tr(p,"help.delete_mode_long1")).append("\n\n")
-					.append(Lang.tr(p,"help.delete_mode_long2")).append("\n\n")
-					.append(Lang.tr(p,"help.delete_mode_long3"))
-					.append(backLink.get())
-					.create();
+                                        .append(Lang.tr(p,"help.delete_mode_long2")).append("\n\n")
+                                        .append(Lang.tr(p,"help.delete_mode_long3"))
+                                        .append(backLink.get())
+                                        .create();
 
-			meta.spigot().addPage(page1, page2, page3, page4);
+                        // Seite 5: Offline-Spieler bearbeiten
+                        BaseComponent[] page5 = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.offline_title")).bold(true).append("\n\n").bold(false)
+                                        .append("• ").append(Lang.tr(p,"help.offline_browse")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.offline_inventory")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.offline_ender")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.offline_apply"))
+                                        .append(backLink.get())
+                                        .create();
+
+                        meta.spigot().addPage(page1, page2, page3, page4, page5);
 			book.setItemMeta(meta);
 		}
 		p.openBook(book);

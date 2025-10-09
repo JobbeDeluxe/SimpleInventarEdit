@@ -16,6 +16,9 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
   - **Q / Ctrl+Q / Middle‑click** on a player: open a configurable **Item Palette** to quickly give items
     - Left‑click in palette = full stack
     - Right‑click in palette = 1 item
+  - **Compass icon**: switch to the stored **offline player list** and edit inventories/Ender Chests of offline players
+  - **Bucket icon**: toggle the **Delete Mode** (left-click = delete stack, right-click = reduce by one)
+  - **Book icon**: open the multilingual in-game **Help Book**
 - **Clean navigation**
   - **Back** button inside Armor & Palette returns to the Player List
   - Optional: after closing target **Inventory/Ender Chest**, automatically return to the Player List
@@ -25,8 +28,12 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
   - Toggle edit mode inside the palette GUI to rearrange or replace quick items
   - Every change saves instantly back to `config.yml`
 - **Offline inventory editing**
-  - Browse stored offline players and modify their inventory or ender chest
+  - Browse stored offline players (snapshots) via the compass button
+  - Edit their inventory (incl. armor/offhand) or Ender Chest while they are offline
   - Changes apply automatically once the player rejoins
+- **In-game help book**
+  - Context-aware pages (EN/DE) summarise controls, palette editing, offline workflow, and delete mode
+  - Accessible directly from the player list toolbar
 - **Secure & simple**
   - No web server, no extra ports
   - Access is controlled by a single permission
@@ -69,10 +76,18 @@ Opens the Player List GUI.
 - **Right‑click** → **Armor/Offhand** (read‑only, has a Back button)
 - **Shift‑click** → **Ender Chest**
 - **Q / Ctrl+Q / Middle‑click** → **Item Palette** (full stack or 1 item)
+- **Bucket icon** → toggle **Delete Mode** (delete stack / minus one)
+- **Compass icon** → open the stored **Offline Players** list
+- **Book icon** → open the multilingual **Help Book**
 
 **Navigation**
 - **Back** button in **Armor** & **Palette** returns to the Player List
 - When closing the target **Inventory/Ender Chest** (ESC/E), it can optionally go back to the Player List (see `navigation.backOnClose`)
+
+**Offline Players**
+- **Left‑click** → stored **Inventory** (incl. armor/offhand)
+- **Right‑click** → stored **Ender Chest**
+- Changes are queued and applied automatically on the next login
 
 ## ⚙️ Configuration (`config.yml`)
 
