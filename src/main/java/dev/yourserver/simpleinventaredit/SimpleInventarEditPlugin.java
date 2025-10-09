@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
@@ -462,24 +463,80 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         return out;
     }
 
-    private ItemStack[] deserializeItems(List<?> raw, int size) {
+    private ItemStack[] deserializeItems(Object raw, int size) {
         ItemStack[] out = new ItemStack[size];
         if (raw == null) return out;
-        int len = Math.min(size, raw.size());
-        for (int i = 0; i < len; i++) {
-            Object obj = raw.get(i);
-            if (obj instanceof ItemStack item) {
-                out[i] = cloneOrNull(item);
-            } else if (obj instanceof Map) {
-                try {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> map = (Map<String, Object>) obj;
-                    out[i] = cloneOrNull(ItemStack.deserialize(map));
-                } catch (Exception ignored) {
-                }
+
+        if (raw instanceof List<?> list) {
+            int len = Math.min(size, list.size());
+            for (int i = 0; i < len; i++) {
+                out[i] = deserializeItem(list.get(i));
+            }
+            return out;
+        }
+
+        if (raw instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                int slot = parseSlotIndex(entry.getKey());
+                if (slot < 0 || slot >= size) continue;
+                out[slot] = deserializeItem(entry.getValue());
+            }
+            return out;
+        }
+
+        if (raw instanceof ConfigurationSection section) {
+            for (String key : section.getKeys(false)) {
+                int slot = parseSlotIndex(key);
+                if (slot < 0 || slot >= size) continue;
+                out[slot] = deserializeItem(section.get(key));
             }
         }
+
         return out;
+    }
+
+    private ItemStack deserializeItem(Object obj) {
+        if (obj instanceof ItemStack item) {
+            return cloneOrNull(item);
+        }
+        if (obj instanceof ConfigurationSection section) {
+            return deserializeItem(sectionToMap(section));
+        }
+        if (obj instanceof Map<?, ?>) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) obj;
+                return cloneOrNull(ItemStack.deserialize(map));
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Object> sectionToMap(ConfigurationSection section) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (String key : section.getKeys(false)) {
+            Object value = section.get(key);
+            if (value instanceof ConfigurationSection nested) {
+                map.put(key, sectionToMap(nested));
+            } else {
+                map.put(key, value);
+            }
+        }
+        return map;
+    }
+
+    private int parseSlotIndex(Object raw) {
+        if (raw instanceof Number num) {
+            return num.intValue();
+        }
+        if (raw instanceof String str) {
+            try {
+                return Integer.parseInt(str.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return -1;
     }
 
     private void loadOfflineData() {
@@ -512,8 +569,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             if (name == null || name.isBlank()) {
                 name = uuid.toString();
             }
-            ItemStack[] inv = deserializeItems(cfg.getList(base + "inventory"), 41);
-            ItemStack[] ender = deserializeItems(cfg.getList(base + "ender"), 27);
+            ItemStack[] inv = deserializeItems(cfg.get(base + "inventory"), 41);
+            ItemStack[] ender = deserializeItems(cfg.get(base + "ender"), 27);
             OfflinePlayerData data = new OfflinePlayerData(name, inv, ender);
             cleanupOfflinePlaceholders(data);
             OfflinePlayerData existing = offlineData.get(uuid);
