@@ -156,7 +156,6 @@ palette:
 
 ## 🧱 Limitations / Notes
 
-- **Armor GUI** is **read‑only** (by design, as requested).
 - Inventory/Ender Chest are **vanilla views**; therefore there’s no custom Back button inside them — the return happens on **close** if enabled.
 
 ## 🖼️ Screenshots
