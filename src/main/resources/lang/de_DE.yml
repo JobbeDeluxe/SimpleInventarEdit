@@ -63,6 +63,8 @@ ui:
 help:
   page_players_basic_title: "Spielerliste – Grundlagen"
   page_players_palette_title: "Spielerliste – Palette & Shortcuts"
+  page_players_palette_title_part1: "Spielerliste – Palette & Shortcuts (1/2)"
+  page_players_palette_title_part2: "Spielerliste – Palette & Shortcuts (2/2)"
   click_left_inv: "Linksklick: Inventar öffnen"
   click_right_armor: "Rechtsklick: Rüstung/Offhand (ansehen & bearbeiten)"
   shift_click_ender: "Shift-Klick: Endertruhe"
@@ -79,6 +81,8 @@ help:
   delete_mode_long2: "Linksklick löscht den gesamten Stapel."
   delete_mode_long3: "Rechtsklick reduziert den Stapel um 1."
   offline_title: "Offline-Spieler"
+  offline_title_part1: "Offline-Spieler (1/2)"
+  offline_title_part2: "Offline-Spieler (2/2)"
   offline_browse: "Kompass-Button: gespeicherte Offline-Spieler durchsuchen"
   offline_inventory: "Linksklick: Offline-Inventar (inkl. Rüstung)"
   offline_ender: "Rechtsklick: Offline-Endertruhe"
