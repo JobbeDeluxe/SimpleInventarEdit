@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.HumanEntity;
@@ -38,7 +39,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Level;
@@ -149,6 +152,20 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private final Map<UUID, OfflinePlayerData> offlineData = new HashMap<>();
     private File offlineDataFile;
     private NamespacedKey placeholderKey;
+
+    // Reflection helper for reading vanilla playerdata files on demand
+    private boolean nbtAccessInitialized = false;
+    private boolean nbtAccessAvailable  = false;
+    private Method nbtReadCompressedMethod;
+    private Method nbtCompoundGetListMethod;
+    private Method nbtCompoundGetByteMethod;
+    private Method nbtListSizeMethod;
+    private Method nbtListGetCompoundMethod;
+    private Method nmsItemStackFromTagMethod;
+    private Method craftItemStackAsBukkitCopyMethod;
+    private Class<?> nbtCompoundClass;
+    private Class<?> nbtListClass;
+    private Class<?> nmsItemStackClass;
 
     @Override
     public void onEnable() {
@@ -513,6 +530,134 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         return null;
     }
 
+    private void ensureNbtAccess() {
+        if (nbtAccessInitialized) return;
+        nbtAccessInitialized = true;
+
+        String version = null;
+        try {
+            String pkg = getServer().getClass().getPackage().getName();
+            int idx = pkg.lastIndexOf('.');
+            if (idx >= 0 && idx + 1 < pkg.length()) {
+                version = pkg.substring(idx + 1);
+            }
+        } catch (Exception ignored) {
+        }
+
+        Class<?> compound = findClass(
+                "net.minecraft.nbt.CompoundTag",
+                "net.minecraft.nbt.NBTTagCompound",
+                version != null ? "net.minecraft.server." + version + ".NBTTagCompound" : null
+        );
+        Class<?> list = findClass(
+                "net.minecraft.nbt.ListTag",
+                "net.minecraft.nbt.NBTTagList",
+                version != null ? "net.minecraft.server." + version + ".NBTTagList" : null
+        );
+        Class<?> nmsStack = findClass(
+                "net.minecraft.world.item.ItemStack",
+                version != null ? "net.minecraft.server." + version + ".ItemStack" : null
+        );
+        Class<?> nbtIo = findClass(
+                "net.minecraft.nbt.NbtIo",
+                "net.minecraft.nbt.NBTCompressedStreamTools",
+                version != null ? "net.minecraft.server." + version + ".NBTCompressedStreamTools" : null
+        );
+
+        if (compound == null || list == null || nmsStack == null || nbtIo == null) {
+            return;
+        }
+
+        Method readCompressed = tryMethod(nbtIo, "readCompressed", InputStream.class);
+        if (readCompressed == null) {
+            readCompressed = tryMethod(nbtIo, "a", InputStream.class);
+        }
+        Method getList = tryMethod(compound, "getList", String.class, int.class);
+        Method getByte = tryMethod(compound, "getByte", String.class);
+        Method size = tryMethod(list, "size");
+        Method getCompound = tryMethod(list, "getCompound", int.class);
+        if (getCompound == null) {
+            getCompound = tryMethod(list, "a", int.class);
+        }
+        Method fromTag = tryMethod(nmsStack, "of", compound);
+        if (fromTag == null) {
+            fromTag = tryMethod(nmsStack, "a", compound);
+        }
+
+        if (readCompressed == null || getList == null || getByte == null || size == null || getCompound == null || fromTag == null) {
+            return;
+        }
+
+        try {
+            readCompressed.setAccessible(true);
+            getList.setAccessible(true);
+            getByte.setAccessible(true);
+            size.setAccessible(true);
+            getCompound.setAccessible(true);
+            fromTag.setAccessible(true);
+        } catch (Exception ignored) {
+        }
+
+        Method asBukkitCopy = null;
+        if (version != null) {
+            try {
+                Class<?> craft = Class.forName("org.bukkit.craftbukkit." + version + ".inventory.CraftItemStack");
+                asBukkitCopy = tryMethod(craft, "asBukkitCopy", nmsStack);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        if (asBukkitCopy == null) {
+            try {
+                Class<?> craft = Class.forName("org.bukkit.craftbukkit.inventory.CraftItemStack");
+                asBukkitCopy = tryMethod(craft, "asBukkitCopy", nmsStack);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+
+        if (asBukkitCopy == null) {
+            return;
+        }
+
+        nbtAccessAvailable = true;
+        nbtCompoundClass = compound;
+        nbtListClass = list;
+        nmsItemStackClass = nmsStack;
+        nbtReadCompressedMethod = readCompressed;
+        nbtCompoundGetListMethod = getList;
+        nbtCompoundGetByteMethod = getByte;
+        nbtListSizeMethod = size;
+        nbtListGetCompoundMethod = getCompound;
+        nmsItemStackFromTagMethod = fromTag;
+        craftItemStackAsBukkitCopyMethod = asBukkitCopy;
+    }
+
+    private Class<?> findClass(String... names) {
+        if (names == null) return null;
+        for (String name : names) {
+            if (name == null) continue;
+            try {
+                return Class.forName(name);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private Method tryMethod(Class<?> type, String name, Class<?>... params) {
+        if (type == null || name == null) return null;
+        try {
+            return type.getMethod(name, params);
+        } catch (NoSuchMethodException ignored) {
+        }
+        try {
+            Method m = type.getDeclaredMethod(name, params);
+            m.setAccessible(true);
+            return m;
+        } catch (NoSuchMethodException ignored) {
+        }
+        return null;
+    }
+
     private Map<String, Object> sectionToMap(ConfigurationSection section) {
         Map<String, Object> map = new LinkedHashMap<>();
         for (String key : section.getKeys(false)) {
@@ -579,6 +724,112 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             } else {
                 offlineData.put(uuid, data);
             }
+        }
+    }
+
+    private OfflinePlayerData ensureOfflineDataLoaded(UUID uuid) {
+        OfflinePlayerData data = offlineData.get(uuid);
+        if (hasOfflineData(data)) {
+            return data;
+        }
+
+        OfflinePlayerData loaded = loadOfflineDataFromPlayerFile(uuid);
+        if (loaded != null) {
+            offlineData.put(uuid, loaded);
+            saveOfflineData();
+            return loaded;
+        }
+        return data;
+    }
+
+    private boolean hasOfflineData(OfflinePlayerData data) {
+        if (data == null) return false;
+        if (data.inventory != null) {
+            for (ItemStack stack : data.inventory) {
+                if (stack != null && stack.getType() != Material.AIR) {
+                    return true;
+                }
+            }
+        }
+        if (data.ender != null) {
+            for (ItemStack stack : data.ender) {
+                if (stack != null && stack.getType() != Material.AIR) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private OfflinePlayerData loadOfflineDataFromPlayerFile(UUID uuid) {
+        if (uuid == null) return null;
+        ensureNbtAccess();
+        if (!nbtAccessAvailable) {
+            return null;
+        }
+
+        World world = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        if (world == null) return null;
+        File playerDir = new File(world.getWorldFolder(), "playerdata");
+        File file = new File(playerDir, uuid.toString() + ".dat");
+        if (!file.isFile()) {
+            return null;
+        }
+
+        try (InputStream in = new FileInputStream(file)) {
+            Object root = nbtReadCompressedMethod.invoke(null, in);
+            if (root == null || !nbtCompoundClass.isInstance(root)) {
+                return null;
+            }
+
+            ItemStack[] inventory = new ItemStack[41];
+            ItemStack[] ender = new ItemStack[27];
+            readPlayerInventoryFromNbt(root, "Inventory", inventory, true);
+            readPlayerInventoryFromNbt(root, "EnderItems", ender, false);
+
+            OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
+            String name = offline != null ? offline.getName() : null;
+            if (name == null || name.isBlank()) {
+                name = uuid.toString();
+            }
+            OfflinePlayerData data = new OfflinePlayerData(name, inventory, ender);
+            cleanupOfflinePlaceholders(data);
+            return data;
+        } catch (Exception ex) {
+            getLogger().log(Level.WARNING, "Could not read offline data from player file for " + uuid, ex);
+            return null;
+        }
+    }
+
+    private void readPlayerInventoryFromNbt(Object rootCompound, String key, ItemStack[] target, boolean playerInventory) throws Exception {
+        if (rootCompound == null || target == null) return;
+        Object list = nbtCompoundGetListMethod.invoke(rootCompound, key, 10);
+        if (list == null || !nbtListClass.isInstance(list)) return;
+        int size = ((Number) nbtListSizeMethod.invoke(list)).intValue();
+        for (int i = 0; i < size; i++) {
+            Object entry = nbtListGetCompoundMethod.invoke(list, i);
+            if (entry == null || !nbtCompoundClass.isInstance(entry)) continue;
+            int rawSlot = ((Number) nbtCompoundGetByteMethod.invoke(entry, "Slot")).intValue();
+            int slot = playerInventory ? mapPlayerInventorySlot(rawSlot) : rawSlot;
+            if (slot < 0 || slot >= target.length) continue;
+            Object nmsStack = nmsItemStackFromTagMethod.invoke(null, entry);
+            if (nmsStack == null || !nmsItemStackClass.isInstance(nmsStack)) continue;
+            ItemStack bukkit = (ItemStack) craftItemStackAsBukkitCopyMethod.invoke(null, nmsStack);
+            if (bukkit == null || bukkit.getType() == Material.AIR) continue;
+            target[slot] = cloneOrNull(bukkit);
+        }
+    }
+
+    private int mapPlayerInventorySlot(int rawSlot) {
+        if (rawSlot >= 0 && rawSlot < 36) return rawSlot;
+        int masked = rawSlot & 0xFF;
+        switch (masked) {
+            case 100: return 36; // boots
+            case 101: return 37; // leggings
+            case 102: return 38; // chestplate
+            case 103: return 39; // helmet
+            case 150: return 40; // offhand
+            default: return -1;
         }
     }
 
@@ -1062,7 +1313,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     private void openOfflineInventory(Player admin, UUID targetId) {
-        OfflinePlayerData data = offlineData.get(targetId);
+        OfflinePlayerData data = ensureOfflineDataLoaded(targetId);
         if (data == null) {
             admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
             return;
@@ -1098,7 +1349,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     }
 
     private void openOfflineEnderChest(Player admin, UUID targetId) {
-        OfflinePlayerData data = offlineData.get(targetId);
+        OfflinePlayerData data = ensureOfflineDataLoaded(targetId);
         if (data == null) {
             admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
             return;
