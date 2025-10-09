@@ -63,6 +63,8 @@ ui:
 help:
   page_players_basic_title: "Player List – Basics"
   page_players_palette_title: "Player List – Palette & Shortcuts"
+  page_players_palette_title_part1: "Player List – Palette & Shortcuts (1/2)"
+  page_players_palette_title_part2: "Player List – Palette & Shortcuts (2/2)"
   click_left_inv: "Left-click: open inventory"
   click_right_armor: "Right-click: armor/offhand (view & edit)"
   shift_click_ender: "Shift-click: ender chest"
@@ -79,6 +81,8 @@ help:
   delete_mode_long2: "Left-click deletes the entire stack."
   delete_mode_long3: "Right-click reduces the stack by 1."
   offline_title: "Offline Players"
+  offline_title_part1: "Offline Players (1/2)"
+  offline_title_part2: "Offline Players (2/2)"
   offline_browse: "Compass button: browse stored offline players"
   offline_inventory: "Left-click: offline inventory (includes armor)"
   offline_ender: "Right-click: offline Ender Chest"

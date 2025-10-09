@@ -1127,29 +1127,31 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         persistPaletteItems();
     }
 
-    /* ====== Hilfe: Echtes Buch – Page 1 gesplittet (1/2 & 2/2), Back-Link auf jeder Seite ====== */
+    /* ====== Hilfe: Echtes Buch – mehrfach gesplittete Seiten, Back-Link auf jeder Seite ====== */
 
-	private void openHelpBook(Player p) {
-		ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
-		BookMeta meta = (BookMeta) book.getItemMeta();
-		if (meta != null) {
-			meta.setTitle("SimpleInventarEdit");
-			meta.setAuthor("SIE");
+        private void openHelpBook(Player p) {
+                ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
+                BookMeta meta = (BookMeta) book.getItemMeta();
+                if (meta != null) {
+                        meta.setTitle("SimpleInventarEdit");
+                        meta.setAuthor("SIE");
 
-			// Back-Link Builder (RUN_COMMAND /sie back)
-			java.util.function.Supplier<BaseComponent[]> backLink = () -> {
-				TextComponent link = new TextComponent("[" + Lang.tr(p, "ui.back") + " → " + Lang.tr(p, "ui.players_title") + "]");
-				link.setColor(net.md_5.bungee.api.ChatColor.AQUA);
-				link.setBold(true);
-				link.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/sie back"));
-				link.setHoverEvent(new HoverEvent(
-						HoverEvent.Action.SHOW_TEXT,
-						new ComponentBuilder(Lang.tr(p, "ui.back"))
-								.color(net.md_5.bungee.api.ChatColor.YELLOW)
-								.create()
-				));
-				return new ComponentBuilder("\n\n").append(link).create(); // Abstand + Link
-			};
+                        // Back-Link Builder (RUN_COMMAND /sie back)
+                        java.util.function.Supplier<BaseComponent[]> backLink = () -> {
+                                TextComponent link = new TextComponent("[" + Lang.tr(p, "ui.back") + " → " + Lang.tr(p, "ui.players_title") + "]");
+                                link.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                                link.setBold(true);
+                                link.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/sie back"));
+                                link.setHoverEvent(new HoverEvent(
+                                                HoverEvent.Action.SHOW_TEXT,
+                                                new ComponentBuilder(Lang.tr(p, "ui.back"))
+                                                                .color(net.md_5.bungee.api.ChatColor.YELLOW)
+                                                                .create()
+                                ));
+                                return new ComponentBuilder("\n\n").append(link).create(); // Abstand + Link
+                        };
+
+                        List<BaseComponent[]> pages = new ArrayList<>();
 
                         // Seite 1: Spielerliste – Grundlagen
                         BaseComponent[] page1 = new ComponentBuilder()
@@ -1159,53 +1161,68 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                                         .append("• ").append(Lang.tr(p,"help.shift_click_ender"))
                                         .append(backLink.get())
                                         .create();
+                        pages.add(page1);
 
-                        // Seite 2: Spielerliste – Palette & Shortcuts
-                        ComponentBuilder page2Builder = new ComponentBuilder()
-                                        .append(Lang.tr(p,"help.page_players_palette_title")).bold(true).append("\n\n").bold(false);
                         if (enablePalette) {
-                                page2Builder.append("• ").append(Lang.tr(p,"help.q_palette")).append("\n\n");
-                                page2Builder.append("• ").append(Lang.tr(p,"help.palette_edit_toggle")).append("\n\n");
-                                page2Builder.append("• ").append(Lang.tr(p,"help.palette_edit_auto")).append("\n\n");
-                                page2Builder.append("• ").append(Lang.tr(p,"help.middle_creative"));
-                        }
-                        BaseComponent[] page2 = page2Builder
-                                        .append(backLink.get())
-                                        .create();
+                                // Seite 2: Spielerliste – Palette & Shortcuts (1/2)
+                                BaseComponent[] pagePalette1 = new ComponentBuilder()
+                                                .append(Lang.tr(p,"help.page_players_palette_title_part1")).bold(true).append("\n\n").bold(false)
+                                                .append("• ").append(Lang.tr(p,"help.q_palette")).append("\n\n")
+                                                .append("• ").append(Lang.tr(p,"help.palette_edit_toggle"))
+                                                .append(backLink.get())
+                                                .create();
+                                pages.add(pagePalette1);
 
-                        // Seite 3: Armor & Offhand
-                        BaseComponent[] page3 = new ComponentBuilder()
+                                // Seite 3: Spielerliste – Palette & Shortcuts (2/2)
+                                BaseComponent[] pagePalette2 = new ComponentBuilder()
+                                                .append(Lang.tr(p,"help.page_players_palette_title_part2")).bold(true).append("\n\n").bold(false)
+                                                .append("• ").append(Lang.tr(p,"help.palette_edit_auto")).append("\n\n")
+                                                .append("• ").append(Lang.tr(p,"help.middle_creative"))
+                                                .append(backLink.get())
+                                                .create();
+                                pages.add(pagePalette2);
+                        }
+
+                        // Nächste Seiten unabhängig von Palette-Einstellung
+                        BaseComponent[] pageArmor = new ComponentBuilder()
                                         .append(Lang.tr(p,"help.armor_title")).bold(true).append("\n\n").bold(false)
                                         .append("• ").append(Lang.tr(p,"help.armor_put_take")).append("\n\n")
                                         .append("• ").append(Lang.tr(p,"help.armor_offhand")).append("\n\n")
                                         .append("• ").append(Lang.tr(p,"help.armor_types"))
-					.append(backLink.get())
-					.create();
+                                        .append(backLink.get())
+                                        .create();
+                        pages.add(pageArmor);
 
-			// Seite 4: Delete-Mode
-			BaseComponent[] page4 = new ComponentBuilder()
-					.append(Lang.tr(p,"help.delete_mode_title")).bold(true).append("\n\n").bold(false)
-					.append(Lang.tr(p,"help.delete_mode_long1")).append("\n\n")
+                        BaseComponent[] pageDeleteMode = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.delete_mode_title")).bold(true).append("\n\n").bold(false)
+                                        .append(Lang.tr(p,"help.delete_mode_long1")).append("\n\n")
                                         .append(Lang.tr(p,"help.delete_mode_long2")).append("\n\n")
                                         .append(Lang.tr(p,"help.delete_mode_long3"))
                                         .append(backLink.get())
                                         .create();
+                        pages.add(pageDeleteMode);
 
-                        // Seite 5: Offline-Spieler bearbeiten
-                        BaseComponent[] page5 = new ComponentBuilder()
-                                        .append(Lang.tr(p,"help.offline_title")).bold(true).append("\n\n").bold(false)
+                        BaseComponent[] pageOffline1 = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.offline_title_part1")).bold(true).append("\n\n").bold(false)
                                         .append("• ").append(Lang.tr(p,"help.offline_browse")).append("\n\n")
-                                        .append("• ").append(Lang.tr(p,"help.offline_inventory")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.offline_inventory"))
+                                        .append(backLink.get())
+                                        .create();
+                        pages.add(pageOffline1);
+
+                        BaseComponent[] pageOffline2 = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.offline_title_part2")).bold(true).append("\n\n").bold(false)
                                         .append("• ").append(Lang.tr(p,"help.offline_ender")).append("\n\n")
                                         .append("• ").append(Lang.tr(p,"help.offline_apply"))
                                         .append(backLink.get())
                                         .create();
+                        pages.add(pageOffline2);
 
-                        meta.spigot().addPage(page1, page2, page3, page4, page5);
-			book.setItemMeta(meta);
-		}
-		p.openBook(book);
-	}
+                        meta.spigot().addPage(pages.toArray(new BaseComponent[0][]));
+                        book.setItemMeta(meta);
+                }
+                p.openBook(book);
+        }
 
 
     /* ====== Spielerliste ====== */
