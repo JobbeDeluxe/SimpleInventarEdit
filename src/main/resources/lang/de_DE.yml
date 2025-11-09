@@ -8,6 +8,9 @@ error:
 
 info:
   target_left: "&eZielspieler hat den Server verlassen. Inventar geschlossen."
+  gamemode_set_online: "&aSpielmodus von {player} wurde auf {mode} gesetzt."
+  gamemode_set_offline: "&aSpielmodus für {player} wird beim nächsten Login auf {mode} gesetzt."
+  gamemode_notify_target: "&eDein Spielmodus wurde von {admin} auf {mode} geändert."
 
 ui:
   # Titel der GUIs
@@ -33,6 +36,14 @@ ui:
   offline_toggle_hint1: "Offline-Spieler durchsuchen und bearbeiten"
   offline_toggle_hint2: "Verwendet die zuletzt gespeicherten Daten"
   offline_back: "Zurück zur Online-Liste"
+  gamemode_button: "&6Spielmodus: &e{mode}"
+  gamemode_next: "&7Klicke, um zu &e{next} &7zu wechseln"
+  gamemode_hint_online: "&8Wirkt sofort"
+  gamemode_hint_offline: "&8Wirkt beim nächsten Login"
+  gamemode_survival: "Überleben"
+  gamemode_creative: "Kreativ"
+  gamemode_adventure: "Abenteuer"
+  gamemode_spectator: "Zuschauer"
 
   # Allgemeine Buttons
   back: "Zurück"
@@ -87,6 +98,9 @@ help:
   offline_inventory: "Linksklick: Offline-Inventar (inkl. Rüstung)"
   offline_ender: "Rechtsklick: Offline-Endertruhe"
   offline_apply: "Änderungen greifen beim nächsten Login"
+  gamemode_title: "Spielmodus-Schalter"
+  gamemode_online: "Inventar-GUI: Komparator-Symbol wechselt den Modus sofort"
+  gamemode_offline: "Offline-Inventar: Komparator legt den Modus für den nächsten Login fest"
 
 armor:
   empty:

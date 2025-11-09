@@ -2,6 +2,7 @@ package dev.yourserver.simpleinventaredit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
@@ -22,6 +23,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -159,6 +161,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private Method nbtReadCompressedMethod;
     private Method nbtCompoundGetListMethod;
     private Method nbtCompoundGetByteMethod;
+    private Method nbtCompoundGetIntMethod;
     private Method nbtListSizeMethod;
     private Method nbtListGetCompoundMethod;
     private Method nmsItemStackFromTagMethod;
@@ -166,6 +169,13 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private Class<?> nbtCompoundClass;
     private Class<?> nbtListClass;
     private Class<?> nmsItemStackClass;
+
+    private static final GameMode[] GAMEMODE_CYCLE = new GameMode[] {
+            GameMode.SURVIVAL,
+            GameMode.CREATIVE,
+            GameMode.ADVENTURE,
+            GameMode.SPECTATOR
+    };
 
     @Override
     public void onEnable() {
@@ -451,6 +461,91 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         inv.setItem(49, named(Material.BARRIER, ChatColor.RED + Lang.tr(viewer, "ui.close")));
     }
 
+    private GameMode effectiveGameMode(GameMode mode) {
+        if (mode != null) return mode;
+        try {
+            GameMode def = Bukkit.getDefaultGameMode();
+            if (def != null) return def;
+        } catch (Exception ignored) {
+        }
+        return GameMode.SURVIVAL;
+    }
+
+    private GameMode nextGameMode(GameMode current) {
+        GameMode effective = effectiveGameMode(current);
+        for (int i = 0; i < GAMEMODE_CYCLE.length; i++) {
+            if (GAMEMODE_CYCLE[i] == effective) {
+                return GAMEMODE_CYCLE[(i + 1) % GAMEMODE_CYCLE.length];
+            }
+        }
+        return GAMEMODE_CYCLE[0];
+    }
+
+    private GameMode gameModeFromId(int id) {
+        for (GameMode gm : GameMode.values()) {
+            if (gm.getValue() == id) return gm;
+        }
+        return null;
+    }
+
+    private GameMode parseGameMode(String name) {
+        if (name == null || name.isBlank()) return null;
+        try {
+            return GameMode.valueOf(name.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private String gameModeDisplay(Player viewer, GameMode mode) {
+        GameMode effective = effectiveGameMode(mode);
+        String key = "ui.gamemode_" + effective.name().toLowerCase(Locale.ROOT);
+        return Lang.tr(viewer, key);
+    }
+
+    private ItemStack gameModeButton(Player viewer, GameMode storedMode, boolean offline) {
+        GameMode current = effectiveGameMode(storedMode);
+        GameMode next = nextGameMode(current);
+        Map<String, String> titlePh = new HashMap<>();
+        titlePh.put("mode", gameModeDisplay(viewer, current));
+        Map<String, String> nextPh = new HashMap<>();
+        nextPh.put("next", gameModeDisplay(viewer, next));
+        List<String> lore = new ArrayList<>();
+        lore.add(Lang.tr(viewer, "ui.gamemode_next", nextPh));
+        lore.add(Lang.tr(viewer, offline ? "ui.gamemode_hint_offline" : "ui.gamemode_hint_online"));
+        return named(Material.COMPARATOR, Lang.tr(viewer, "ui.gamemode_button", titlePh), lore);
+    }
+
+    private void refreshGameModeButtonForOnlineViewers(UUID targetId, GameMode mode) {
+        if (targetId == null) return;
+        for (Map.Entry<UUID, UUID> entry : onlineInventoryTargetByViewer.entrySet()) {
+            if (!targetId.equals(entry.getValue())) continue;
+            Player viewer = Bukkit.getPlayer(entry.getKey());
+            if (viewer == null || !viewer.isOnline()) continue;
+            InventoryView view = viewer.getOpenInventory();
+            if (view == null) continue;
+            Inventory top = view.getTopInventory();
+            if (top == null) continue;
+            top.setItem(51, gameModeButton(viewer, mode, false));
+            viewer.updateInventory();
+        }
+    }
+
+    private void refreshGameModeButtonForOfflineViewers(UUID targetId, GameMode mode) {
+        if (targetId == null) return;
+        for (Map.Entry<UUID, UUID> entry : offlineInventoryTargetByViewer.entrySet()) {
+            if (!targetId.equals(entry.getValue())) continue;
+            Player viewer = Bukkit.getPlayer(entry.getKey());
+            if (viewer == null || !viewer.isOnline()) continue;
+            InventoryView view = viewer.getOpenInventory();
+            if (view == null) continue;
+            Inventory top = view.getTopInventory();
+            if (top == null) continue;
+            top.setItem(51, gameModeButton(viewer, mode, true));
+            viewer.updateInventory();
+        }
+    }
+
     private void ensureInventoryPlaceholders(Inventory inv, Player viewer) {
         if (inv == null || viewer == null || inv.getSize() < 41) return;
         if (inv.getItem(36) == null || inv.getItem(36).getType() == Material.AIR || isPlaceholder(inv.getItem(36))) {
@@ -574,6 +669,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
         Method getList = tryMethod(compound, "getList", String.class, int.class);
         Method getByte = tryMethod(compound, "getByte", String.class);
+        Method getInt = tryMethod(compound, "getInt", String.class);
         Method size = tryMethod(list, "size");
         Method getCompound = tryMethod(list, "getCompound", int.class);
         if (getCompound == null) {
@@ -592,6 +688,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             readCompressed.setAccessible(true);
             getList.setAccessible(true);
             getByte.setAccessible(true);
+            if (getInt != null) getInt.setAccessible(true);
             size.setAccessible(true);
             getCompound.setAccessible(true);
             fromTag.setAccessible(true);
@@ -625,6 +722,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         nbtReadCompressedMethod = readCompressed;
         nbtCompoundGetListMethod = getList;
         nbtCompoundGetByteMethod = getByte;
+        nbtCompoundGetIntMethod = getInt;
         nbtListSizeMethod = size;
         nbtListGetCompoundMethod = getCompound;
         nmsItemStackFromTagMethod = fromTag;
@@ -716,7 +814,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             }
             ItemStack[] inv = deserializeItems(cfg.get(base + ".inventory"), 41);
             ItemStack[] ender = deserializeItems(cfg.get(base + ".ender"), 27);
-            OfflinePlayerData data = new OfflinePlayerData(name, inv, ender);
+            GameMode mode = parseGameMode(cfg.getString(base + ".gamemode"));
+            OfflinePlayerData data = new OfflinePlayerData(name, inv, ender, mode);
             cleanupOfflinePlaceholders(data);
             OfflinePlayerData existing = offlineData.get(uuid);
             if (existing != null) {
@@ -787,12 +886,23 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             readPlayerInventoryFromNbt(root, "Inventory", inventory, true);
             readPlayerInventoryFromNbt(root, "EnderItems", ender, false);
 
+            GameMode mode = null;
+            if (nbtCompoundGetIntMethod != null) {
+                try {
+                    Object rawValue = nbtCompoundGetIntMethod.invoke(root, "playerGameType");
+                    if (rawValue instanceof Number num) {
+                        mode = gameModeFromId(num.intValue());
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
             OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
             String name = offline != null ? offline.getName() : null;
             if (name == null || name.isBlank()) {
                 name = uuid.toString();
             }
-            OfflinePlayerData data = new OfflinePlayerData(name, inventory, ender);
+            OfflinePlayerData data = new OfflinePlayerData(name, inventory, ender, mode);
             cleanupOfflinePlaceholders(data);
             return data;
         } catch (Exception ex) {
@@ -926,6 +1036,10 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                 target.ender[i] = cloneOrNull(source.ender[i]);
             }
         }
+
+        if (target.gameMode == null && source.gameMode != null) {
+            target.gameMode = source.gameMode;
+        }
     }
 
     private boolean isLikelyUuidName(String name) {
@@ -969,7 +1083,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             }
             OfflinePlayerData data = offlineData.get(uuid);
             if (data == null) {
-                offlineData.put(uuid, new OfflinePlayerData(name, new ItemStack[41], new ItemStack[27]));
+                offlineData.put(uuid, new OfflinePlayerData(name, new ItemStack[41], new ItemStack[27], null));
                 changed = true;
             } else if (data.name == null || data.name.isBlank()) {
                 data.name = name;
@@ -1029,6 +1143,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             OfflinePlayerData data = entry.getValue();
             String base = "players." + uuid;
             cfg.set(base + ".name", data.name);
+            cfg.set(base + ".gamemode", data.gameMode != null ? data.gameMode.name() : null);
             cfg.set(base + ".inventory", Arrays.stream(data.inventory)
                     .map(this::cloneOrNull)
                     .collect(Collectors.toList()));
@@ -1047,7 +1162,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         if (player == null) return;
         OfflinePlayerData data = new OfflinePlayerData(player.getName(),
                 cloneArray(player.getInventory().getContents(), 41),
-                cloneArray(player.getEnderChest().getContents(), 27));
+                cloneArray(player.getEnderChest().getContents(), 27),
+                player.getGameMode());
         offlineData.put(player.getUniqueId(), data);
         saveOfflineData();
     }
@@ -1192,6 +1308,14 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
                                         .append(backLink.get())
                                         .create();
                         pages.add(pageArmor);
+
+                        BaseComponent[] pageGamemode = new ComponentBuilder()
+                                        .append(Lang.tr(p,"help.gamemode_title")).bold(true).append("\n\n").bold(false)
+                                        .append("• ").append(Lang.tr(p,"help.gamemode_online")).append("\n\n")
+                                        .append("• ").append(Lang.tr(p,"help.gamemode_offline"))
+                                        .append(backLink.get())
+                                        .create();
+                        pages.add(pageGamemode);
 
                         BaseComponent[] pageDeleteMode = new ComponentBuilder()
                                         .append(Lang.tr(p,"help.delete_mode_title")).bold(true).append("\n\n").bold(false)
@@ -1375,6 +1499,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         inv.setItem(40, safeClone(data.inventory[40], armorPlaceholder(viewer, EquipmentSlot.OFF_HAND)));
 
         decorateInventoryControls(inv, viewer);
+        inv.setItem(51, gameModeButton(viewer, data.gameMode, true));
     }
 
     private void openOfflineEnderChest(Player admin, UUID targetId) {
@@ -1525,6 +1650,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         // ---- Online-Inventar (GUI) ----
         if (onlineInventoryTargetByViewer.containsKey(adminId)) {
             Inventory top = e.getView().getTopInventory();
+            UUID targetId = onlineInventoryTargetByViewer.get(adminId);
             if (e.getClickedInventory() == e.getView().getBottomInventory()) {
                 Inventory topInv = top;
                 Bukkit.getScheduler().runTask(this, () -> syncOnlineInventoryFromGui(admin, topInv));
@@ -1543,7 +1669,40 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             if (raw == 47) { e.setCancelled(true); openHelpBook(admin); return; }
             if (raw == 49) { e.setCancelled(true); admin.closeInventory(); return; }
 
-            if ((raw >= 41 && raw <= 44) || raw >= 46) {
+            if (raw == 51) {
+                e.setCancelled(true);
+                if (targetId == null) {
+                    admin.playSound(admin.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.9f);
+                    return;
+                }
+                Player target = Bukkit.getPlayer(targetId);
+                if (target == null || !target.isOnline()) {
+                    onlineInventoryTargetByViewer.remove(adminId);
+                    admin.closeInventory();
+                    admin.sendMessage(ChatColor.RED + Lang.tr(admin, "error.target_offline"));
+                    return;
+                }
+                GameMode next = nextGameMode(target.getGameMode());
+                target.setGameMode(next);
+                top.setItem(51, gameModeButton(admin, next, false));
+                admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+
+                Map<String, String> adminPh = new HashMap<>();
+                adminPh.put("player", target.getName());
+                adminPh.put("mode", gameModeDisplay(admin, next));
+                admin.sendMessage(Lang.tr(admin, "info.gamemode_set_online", adminPh));
+
+                Map<String, String> targetPh = new HashMap<>();
+                targetPh.put("mode", gameModeDisplay(target, next));
+                targetPh.put("admin", admin.getName());
+                target.sendMessage(Lang.tr(target, "info.gamemode_notify_target", targetPh));
+
+                storeOfflineData(target);
+                refreshGameModeButtonForOnlineViewers(targetId, next);
+                return;
+            }
+
+            if ((raw >= 41 && raw <= 44) || (raw >= 46 && raw != 51)) {
                 e.setCancelled(true);
                 return;
             }
@@ -1630,6 +1789,8 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         // ---- Offline-Inventar ----
         if (offlineInventoryTargetByViewer.containsKey(adminId)) {
             Inventory top = e.getView().getTopInventory();
+            UUID targetId = offlineInventoryTargetByViewer.get(adminId);
+            OfflinePlayerData data = targetId != null ? offlineData.get(targetId) : null;
             if (e.getClickedInventory() == e.getView().getBottomInventory()) {
                 Inventory topInv = top;
                 Bukkit.getScheduler().runTask(this, () -> syncOfflineInventoryFromGui(admin, topInv));
@@ -1647,7 +1808,33 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             if (raw == 47) { e.setCancelled(true); openHelpBook(admin); return; }
             if (raw == 49) { e.setCancelled(true); admin.closeInventory(); return; }
 
-            if ((raw >= 41 && raw <= 44) || raw >= 46) {
+            if (raw == 51) {
+                e.setCancelled(true);
+                if (data == null) {
+                    admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
+                    return;
+                }
+                GameMode next = nextGameMode(data.gameMode);
+                data.gameMode = next;
+                top.setItem(51, gameModeButton(admin, data.gameMode, true));
+                saveOfflineData();
+                admin.playSound(admin.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+
+                Map<String, String> ph = new HashMap<>();
+                String name = data.name;
+                if ((name == null || name.isBlank()) && targetId != null) {
+                    OfflinePlayer offline = Bukkit.getOfflinePlayer(targetId);
+                    name = offline != null ? offline.getName() : targetId.toString();
+                }
+                ph.put("player", name != null ? name : Lang.tr(admin, "ui.players_title"));
+                ph.put("mode", gameModeDisplay(admin, next));
+                admin.sendMessage(Lang.tr(admin, "info.gamemode_set_offline", ph));
+
+                refreshGameModeButtonForOfflineViewers(targetId, next);
+                return;
+            }
+
+            if ((raw >= 41 && raw <= 44) || (raw >= 46 && raw != 51)) {
                 e.setCancelled(true);
                 return;
             }
@@ -2013,6 +2200,9 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         if (data != null) {
             player.getInventory().setContents(cloneArray(data.inventory, 41));
             player.getEnderChest().setContents(cloneArray(data.ender, 27));
+            if (data.gameMode != null) {
+                player.setGameMode(data.gameMode);
+            }
             saveOfflineData();
         }
         storeOfflineData(player);
@@ -2062,6 +2252,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         inv.setItem(39, safeClone(pi.getBoots(), armorPlaceholder(viewer, EquipmentSlot.FEET)));
         inv.setItem(40, safeClone(pi.getItemInOffHand(), armorPlaceholder(viewer, EquipmentSlot.OFF_HAND)));
         decorateInventoryControls(inv, viewer);
+        inv.setItem(51, gameModeButton(viewer, target.getGameMode(), false));
     }
 
     private void openTargetEnderChest(Player admin, Player target) {
@@ -2153,11 +2344,13 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         private final ItemStack[] inventory;
         private final ItemStack[] ender;
         private String name;
+        private GameMode gameMode;
 
-        private OfflinePlayerData(String name, ItemStack[] inventory, ItemStack[] ender) {
+        private OfflinePlayerData(String name, ItemStack[] inventory, ItemStack[] ender, GameMode mode) {
             this.name = name;
             this.inventory = inventory != null ? inventory : new ItemStack[41];
             this.ender = ender != null ? ender : new ItemStack[27];
+            this.gameMode = mode;
         }
 
         private OfflinePlayerData copy() {
@@ -2169,7 +2362,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             for (int i = 0; i < ender.length; i++) {
                 ec[i] = ender[i] != null ? ender[i].clone() : null;
             }
-            return new OfflinePlayerData(name, inv, ec);
+            return new OfflinePlayerData(name, inv, ec, gameMode);
         }
     }
 }
