@@ -1,6 +1,6 @@
 [CENTER][B][SIZE=6]SimpleInventarEdit[/SIZE][/B]
 [SIZE=4]In-game Inventory Management for Operators (Paper 1.21.x)[/SIZE]
-[SIZE=3]Version 2.3.0[/SIZE][/CENTER]
+[SIZE=3]Version 2.4.0[/SIZE][/CENTER]
 
 [B][COLOR=#55AAFF]✨ Features[/COLOR][/B]
 [LIST]
@@ -9,9 +9,11 @@
 [*][B]Right-click[/B]: [I]Armor/Offhand[/I] (read-only) with a [I]Back[/I] button.
 [*][B]Shift-click[/B]: player’s Ender Chest.
 [*][B]Q / Ctrl+Q / Middle-click[/B]: configurable [I]Item Palette[/I] (full stack / single item).
+[*][B]Comparator icon[/B]: cycle a player's [I]game mode[/I] directly inside the inventory GUI.
 [*][B]Compass icon[/B]: browse stored [I]Offline Players[/I] (inventories, armor/offhand, ender chest).
 [*][B]Bucket icon[/B]: toggle [I]Delete Mode[/I] (left-click = delete stack, right-click = minus one).
 [*][B]Book icon[/B]: open the multilingual in-game [I]Help Book[/I] (English & German).
+[*][B]Offline inventory comparator[/B]: queue the next login [I]game mode[/I] for absent players.
 [*]Optional [I]Back on close[/I]: after ESC/E, return to the player list.
 [*]No web UI, no extra ports – everything in-game. Only [ICODE]sie.use[/ICODE] required.
 [/LIST]
@@ -108,11 +110,11 @@ palette:
 [/CODE]
 [SIZE=2]• Material names must be valid Spigot/Paper enums (e.g., DIAMOND_PICKAXE). Invalid entries are logged and ignored.[/SIZE]
 
-[B][COLOR=#55AAFF]🆕 2.3.0 Highlights[/COLOR][/B]
+[B][COLOR=#55AAFF]🆕 2.4.0 Highlights[/COLOR][/B]
 [LIST]
-[*]Expanded in-game Help Book (EN/DE) covering palette editing, offline workflow, and delete mode.
-[*]Improved player list toolbar with Compass (offline list) & Bucket (delete mode) callouts.
-[*]README & help pages updated for the latest workflow.
+[*]Comparator buttons in online and offline inventory editors cycle or queue game modes (Survival → Creative → Adventure → Spectator).
+[*]Offline mode selections persist to disk and apply automatically on the next join, with notifications for online changes.
+[*]Documentation and translations updated; see the new HISTORY.md for release notes.
 [/LIST]
 
 [B]Screenshots
