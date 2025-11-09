@@ -16,6 +16,7 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
   - **Q / Ctrl+Q / Middle‑click** on a player: open a configurable **Item Palette** to quickly give items
     - Left‑click in palette = full stack
     - Right‑click in palette = 1 item
+  - **Comparator icon** inside the inventory view cycles the target's **game mode** (Survival → Creative → Adventure → Spectator)
   - **Compass icon**: switch to the stored **offline player list** and edit inventories/Ender Chests of offline players
   - **Bucket icon**: toggle the **Delete Mode** (left-click = delete stack, right-click = reduce by one)
   - **Book icon**: open the multilingual in-game **Help Book**
@@ -30,6 +31,7 @@ A **lightweight** Paper plugin that lets operators (or trusted moderators) brows
 - **Offline inventory editing**
   - Browse stored offline players (snapshots) via the compass button
   - Edit their inventory (incl. armor/offhand) or Ender Chest while they are offline
+  - Comparator icon in the offline inventory schedules a **game mode** for the next login
   - Changes apply automatically once the player rejoins
 - **In-game help book**
   - Context-aware pages (EN/DE) summarise controls, palette editing, offline workflow, and delete mode
@@ -76,6 +78,7 @@ Opens the Player List GUI.
 - **Right‑click** → **Armor/Offhand** (read‑only, has a Back button)
 - **Shift‑click** → **Ender Chest**
 - **Q / Ctrl+Q / Middle‑click** → **Item Palette** (full stack or 1 item)
+- **Comparator icon** → cycle the target's **game mode**
 - **Bucket icon** → toggle **Delete Mode** (delete stack / minus one)
 - **Compass icon** → open the stored **Offline Players** list
 - **Book icon** → open the multilingual **Help Book**
@@ -87,6 +90,7 @@ Opens the Player List GUI.
 **Offline Players**
 - **Left‑click** → stored **Inventory** (incl. armor/offhand)
 - **Right‑click** → stored **Ender Chest**
+- **Comparator icon** → queue the **game mode** applied at the next login
 - Changes are queued and applied automatically on the next login
 
 ## ⚙️ Configuration (`config.yml`)

@@ -8,6 +8,9 @@ error:
 
 info:
   target_left: "&eTarget player left the server. Inventory closed."
+  gamemode_set_online: "&aSet {player}'s game mode to {mode}."
+  gamemode_set_offline: "&aQueued {player}'s game mode to {mode}."
+  gamemode_notify_target: "&eYour game mode was changed to {mode} by {admin}."
 
 ui:
   # Titles used by the GUI (and for startsWith checks)
@@ -33,6 +36,14 @@ ui:
   offline_toggle_hint1: "Browse and edit offline players"
   offline_toggle_hint2: "Uses the last saved data"
   offline_back: "Back to Online List"
+  gamemode_button: "&6Game Mode: &e{mode}"
+  gamemode_next: "&7Click to switch to &e{next}"
+  gamemode_hint_online: "&8Applies instantly"
+  gamemode_hint_offline: "&8Applies when the player next joins"
+  gamemode_survival: "Survival"
+  gamemode_creative: "Creative"
+  gamemode_adventure: "Adventure"
+  gamemode_spectator: "Spectator"
 
   # Common buttons
   back: "Back"
@@ -87,6 +98,9 @@ help:
   offline_inventory: "Left-click: offline inventory (includes armor)"
   offline_ender: "Right-click: offline Ender Chest"
   offline_apply: "Changes apply the next time the player joins"
+  gamemode_title: "Game Mode Switch"
+  gamemode_online: "Inventory GUI: comparator icon cycles the target's mode"
+  gamemode_offline: "Offline inventory: comparator icon schedules the next login mode"
 
 armor:
   empty:
