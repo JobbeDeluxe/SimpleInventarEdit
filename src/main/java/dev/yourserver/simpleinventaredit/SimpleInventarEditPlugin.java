@@ -1018,7 +1018,12 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         if (online != null) {
             return online.getUniqueId();
         }
-        return null;
+
+        try {
+            return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void mergeOfflineData(OfflinePlayerData target, OfflinePlayerData source) {
