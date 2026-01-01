@@ -1,6 +1,6 @@
 [CENTER][B][SIZE=6]SimpleInventarEdit[/SIZE][/B]
 [SIZE=4]In-game Inventory Management for Operators (Paper 1.21.x)[/SIZE]
-[SIZE=3]Version 2.4.0[/SIZE][/CENTER]
+[SIZE=3]Version 2.4.1[/SIZE][/CENTER]
 
 [B][COLOR=#55AAFF]✨ Features[/COLOR][/B]
 [LIST]
@@ -110,11 +110,10 @@ palette:
 [/CODE]
 [SIZE=2]• Material names must be valid Spigot/Paper enums (e.g., DIAMOND_PICKAXE). Invalid entries are logged and ignored.[/SIZE]
 
-[B][COLOR=#55AAFF]🆕 2.4.0 Highlights[/COLOR][/B]
+[B][COLOR=#55AAFF]🆕 2.4.1 Highlights[/COLOR][/B]
 [LIST]
-[*]Comparator buttons in online and offline inventory editors cycle or queue game modes (Survival → Creative → Adventure → Spectator).
-[*]Offline mode selections persist to disk and apply automatically on the next join, with notifications for online changes.
-[*]Documentation and translations updated; see the new HISTORY.md for release notes.
+[*]Offline data now loads even when stored in older root-level sections of [ICODE]offline-data.yml[/ICODE].
+[*]Keeps compatibility with existing [ICODE]players[/ICODE] sections while improving error logs.
 [/LIST]
 
 [B]Screenshots
