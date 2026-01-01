@@ -154,6 +154,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
     private final Map<UUID, OfflinePlayerData> offlineData = new HashMap<>();
     private File offlineDataFile;
     private NamespacedKey placeholderKey;
+    private NamespacedKey targetKey;
 
     // Reflection helper for reading vanilla playerdata files on demand
     private boolean nbtAccessInitialized = false;
@@ -186,6 +187,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         }
         this.offlineDataFile = new File(getDataFolder(), "offline-data.yml");
         this.placeholderKey = new NamespacedKey(this, "gui-placeholder");
+        this.targetKey = new NamespacedKey(this, "gui-target");
         loadSieConfig();
         loadOfflineData();
         populateOfflineIndex();
@@ -319,9 +321,37 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
             meta.setDisplayName(ChatColor.GOLD + name);
             if (lore != null && !lore.isEmpty()) meta.setLore(lore);
             meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
+            if (targetKey != null) {
+                meta.getPersistentDataContainer().set(targetKey, PersistentDataType.STRING, uuid.toString());
+            }
             it.setItemMeta(meta);
         }
         return it;
+    }
+
+    private UUID extractTargetId(ItemStack item) {
+        if (item == null) return null;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return null;
+
+        if (meta instanceof SkullMeta skull) {
+            OfflinePlayer owner = skull.getOwningPlayer();
+            if (owner != null && owner.getUniqueId() != null) {
+                return owner.getUniqueId();
+            }
+        }
+
+        if (targetKey != null) {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            if (pdc.has(targetKey, PersistentDataType.STRING)) {
+                try {
+                    String raw = pdc.get(targetKey, PersistentDataType.STRING);
+                    if (raw != null) return UUID.fromString(raw);
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        return null;
     }
 
     private ItemStack safeClone(ItemStack stack, ItemStack fallbackIfAir) {
@@ -1635,10 +1665,7 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
 
             if (raw < 0 || raw >= 45 || cur == null || cur.getType() == Material.AIR) return;
 
-            UUID targetId = null;
-            if (cur.getItemMeta() instanceof SkullMeta skull && skull.getOwningPlayer() != null) {
-                targetId = skull.getOwningPlayer().getUniqueId();
-            }
+            UUID targetId = extractTargetId(cur);
             if (targetId == null) {
                 admin.sendMessage(Lang.tr(admin, "ui.offline_no_data"));
                 return;
