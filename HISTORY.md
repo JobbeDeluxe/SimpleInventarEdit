@@ -1,5 +1,10 @@
 # SimpleInventarEdit History
 
+## 2.4.1 – Offline Data Compatibility
+
+- Load offline player inventories even when stored in legacy root-level sections of `offline-data.yml`.
+- Preserve existing handling for modern `players` sections while improving error logging.
+
 ## 2.4.0 – Game Mode Controls
 
 - Added comparator buttons to online and offline inventory editors so admins can cycle a player's game mode without commands.
