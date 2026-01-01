@@ -787,12 +787,16 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         if (offlineDataFile == null || !offlineDataFile.exists()) return;
 
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(offlineDataFile);
-        if (!cfg.isConfigurationSection("players")) return;
+        ConfigurationSection playerSection = cfg.isConfigurationSection("players")
+                ? cfg.getConfigurationSection("players")
+                : cfg;
+        if (playerSection == null) return;
 
         Map<String, UUID> knownNames = buildKnownNameIndex();
 
-        for (String key : cfg.getConfigurationSection("players").getKeys(false)) {
-            String base = "players." + key;
+        String basePrefix = playerSection == cfg ? "" : "players.";
+        for (String key : playerSection.getKeys(false)) {
+            String base = basePrefix + key;
             String storedName = cfg.getString(base + ".name");
             UUID uuid = resolveOfflineDataKey(key, storedName, knownNames);
             if (uuid == null) {
@@ -1014,7 +1018,12 @@ public class SimpleInventarEditPlugin extends JavaPlugin implements Listener {
         if (online != null) {
             return online.getUniqueId();
         }
-        return null;
+
+        try {
+            return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void mergeOfflineData(OfflinePlayerData target, OfflinePlayerData source) {
